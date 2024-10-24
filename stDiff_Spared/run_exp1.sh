@@ -1,0 +1,2 @@
+CUDA_VISIBLE_DEVICES=7 python main_2D.py --dataset villacampa_lung_organoid --lr 0.00005 --depth 8 --head 16 --hidden_size 1024 --batch_size 128 --prediction_layer c_d_log1p --loss_type noise --concat_dim 0 --masked_loss True
+CUDA_VISIBLE_DEVICES=7 python main_2D.py --dataset villacampa_lung_organoid --lr 0.00005 --depth 8 --head 16 --hidden_size 1024 --batch_size 128 --prediction_layer c_d_log1p --loss_type noise --concat_dim 0 --masked_loss False
