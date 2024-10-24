@@ -5,22 +5,14 @@ import warnings
 import torch
 
 from model_stDiff.stDiff_model_2D import DiT_stDiff
-from model_stDiff.stDiff_model_2D_Conv2D import DiT_stDiff_2D
-from model_stDiff.stDiff_model_BoDiffusion import DiT_stDiff_BoDiffusion
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 import anndata as ad
 from spared.datasets import get_dataset
 
 from utils import *
-from visualize_imputation import log_pred_image_extreme_completion
 
-from spared_imputation.model import GeneImputationModel
-from spared_imputation.predictions import get_predictions
-from spared_imputation.utils import apply_median_imputation_method
-from spared_imputation.utils import prepare_preds_for_visuals
-
-from visualize_imputation import log_pred_image
+from visualize_imputation import *
 import wandb
 from datetime import datetime
 
@@ -40,15 +32,10 @@ torch.cuda.manual_seed_all(seed)
 
 def main():
     ### Wandb 
+    exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     wandb.login()
-    if args.debbug_wandb:
-        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="debbugs", entity="spared_v2", name=exp_name + '_debbug')
-
-    else:
-        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
-
+    wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name)
+    #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
                "dataset": args.dataset, 
@@ -59,7 +46,8 @@ def main():
                "concat_dim": args.concat_dim,
                "masked_loss": args.masked_loss,
                "model_type": args.model_type,
-               "scheduler": args.scheduler})
+               "scheduler": args.scheduler,
+               "layer": args.prediction_layer})
     
     ### Parameters
     # Define the training parameters
@@ -93,11 +81,11 @@ def main():
     ## Validation
     st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val")
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
-
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test")
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_test)
+    #breakpoint()
     # Definir un tensor de promedio en caso de predecir una capa delta
     num_genes = adata.shape[1]
     if "deltas" in pred_layer:
@@ -139,37 +127,15 @@ def main():
     if num_nn > 2048:
         hidden_size = 2048
     """
-    
-    if args.model_type == "1D":
-        model = DiT_stDiff(
-            input_size=num_nn,  
-            hidden_size=hidden_size, 
-            depth=depth,
-            num_heads=head,
-            classes=6, 
-            args=args,
-            mlp_ratio=4.0,
-            dit_type='dit')
-    elif args.model_type == "2D":
-        model = DiT_stDiff_2D(
-            input_size=num_nn,  
-            hidden_size=hidden_size, 
-            depth=depth,
-            num_heads=head,
-            classes=6, 
-            args=args,
-            mlp_ratio=4.0,
-            dit_type='dit')
-    elif args.model_type == "BoDiffusion":
-        model = DiT_stDiff_BoDiffusion(
-            input_size=num_nn,  
-            hidden_size=hidden_size, 
-            depth=depth,
-            num_heads=head,
-            classes=6, 
-            args=args,
-            mlp_ratio=4.0,
-            dit_type='dit')
+    model = DiT_stDiff(
+        input_size=num_nn,  
+        hidden_size=hidden_size, 
+        depth=depth,
+        num_heads=head,
+        classes=6, 
+        args=args,
+        mlp_ratio=4.0,
+        dit_type='dit')
     
     model.to(device)
     save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
@@ -184,6 +150,7 @@ def main():
                                 valid_data = st_data_valid,
                                 valid_masked_data = st_data_masked_valid,
                                 mask_valid = mask_valid,
+                                mask_extreme_completion = mask_extreme_completion_valid,
                                 max_norm = [max_train, max_valid],
                                 min_norm = [min_train, min_valid],
                                 avg_tensor = avg_tensor,
@@ -205,6 +172,7 @@ def main():
                                     data=st_data_test, 
                                     masked_data=st_data_masked_test, 
                                     mask=mask_test,
+                                    mask_extreme_completion=mask_extreme_completion_test,
                                     max_norm = max_test,
                                     min_norm = min_test,
                                     avg_tensor = avg_tensor,
@@ -213,13 +181,13 @@ def main():
                                     device=device,
                                     args=args)
 
-        
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
-        #torch.save(imputation_data, os.path.join('Predictions', 'predictions_villacampa_mouse_brain_v2.pt'))
+        torch.save(imputation_data, os.path.join('Predictions', 'predictions_villacampa_mouse_brain_v2.pt'))
         log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
-    
+        #print(test_metrics)
+     
 if __name__=='__main__':
     main()

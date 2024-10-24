@@ -12,7 +12,7 @@ import wandb
 import datetime 
 from spared.metrics import get_metrics
 from datetime import datetime
-from visualize_imputation import log_pred_image_extreme_completion
+from visualize_imputation import *
 
 # Get parser and parse arguments
 parser = get_main_parser()
@@ -32,6 +32,7 @@ def normal_train_stDiff(model,
                  valid_data,
                  valid_masked_data,
                  mask_valid,
+                 mask_extreme_completion,
                  max_norm,
                  min_norm, 
                  avg_tensor,
@@ -83,7 +84,8 @@ def normal_train_stDiff(model,
     min_mse = np.inf
     best_mse = 0
     best_pcc = 0
-
+    loss_visualization = []
+    #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
     
     for epoch in t_epoch:
@@ -197,6 +199,7 @@ def normal_train_stDiff(model,
                                         masked_data=valid_masked_data, 
                                         model=model,
                                         mask=mask_valid,
+                                        mask_extreme_completion=mask_extreme_completion,
                                         max_norm = max_norm[1],
                                         min_norm = min_norm[1],
                                         avg_tensor = avg_tensor,
@@ -204,6 +207,7 @@ def normal_train_stDiff(model,
                                         device=device,
                                         args=args
                                         )
+            
             adata_valid.layers["diff_pred"] = imputation_data
             log_pred_image_extreme_completion(adata_valid, args, epoch)
 
@@ -212,10 +216,8 @@ def normal_train_stDiff(model,
                 best_mse = metrics_dict["MSE"]
                 best_pcc = metrics_dict["PCC-Gene"]
                 torch.save(model.state_dict(), os.path.join("Experiments", exp_name, save_path))
-
+            #save_metrics_to_csv(args.metrics_path, args.dataset, "valid", metrics_dict)
             wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
     # Save the best MSE and best PCC on the validation set
     wandb_logger.log({"best_MSE":best_mse, "best_PCC": best_pcc})
-    
-        
 

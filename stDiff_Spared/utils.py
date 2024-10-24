@@ -216,7 +216,7 @@ def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.
 
     return adata
 
-def inference_function(dataloader, data, masked_data, model, mask, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
+def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_completion, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
     from model_stDiff.sample import sample_stDiff
@@ -260,19 +260,19 @@ def inference_function(dataloader, data, masked_data, model, mask, max_norm, min
                         is_classifier_guidance=False,
                         omega=0.2)
 
-    if len(mask.shape) > 2:  
-        mask = mask[:,:,0] 
-        data = data[:,:,0]
-        imputation = imputation[:,:,0]
+    #mask_boolean = (1-mask).astype(bool) #for partial completion
+    mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
     
-    mask_boolean = (1-mask).astype(bool)
-    
+    #Evaluate only on spot central
+    mask_boolean = mask_boolean[:,:,0]
+    data = data[:,:,0]
+    imputation = imputation[:,:,0]
+        
     #data = data*max_norm
     #imputation = imputation*max_norm
+    
     data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
     imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
-    #BoDiffusion
-    #imputation = imputation.squeeze(2)
     
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
@@ -318,70 +318,6 @@ def define_splits(dataset, split:str, pred_layer:str):
 
     #st used just for train
     return st_data, st_data_masked, mask, max_data
-
-#Auxiliar functions
-
-def plot_loss(epoch_array, loss_visualization, dataset_name):
-    plt.figure()
-    plt.plot(epoch_array, loss_visualization)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.title(f"Dataset: {dataset_name}")
-    plt.tight_layout()
-    plt.savefig(os.path.join("loss_figures", f"Loss {dataset_name}.jpg"))
-
-def save_metrics_to_csv(path, dataset_name, split, metrics):
-    """
-    Creates or edits a .csv file with the dataset name as the title and the metrics dictionary as a string.
-
-    Params:
-
-        -path (str): Path to the .csv file
-        -dataset_name (str): The name of the dataset to be used as the title
-        -metrics (dict): Dictionary containing metric names and values
-    """
-    # Ensure the directory for the path exists
-    #directory = os.path.dirname(file_path)
-    #if not os.path.exists(directory):
-    #    os.makedirs(directory)
-
-    file_exists = os.path.isfile(path)
-
-    with open(path, mode='a', newline='') as file:
-        writer = csv.writer(file)
-        
-        # Write the title (dataset name) if the file does not exist
-        if not file_exists:
-            writer.writerow(["Dataset", "Split", "MSE", "PCC-Gene"])
-
-        # Convert the metrics dictionary to a string
-        #metrics_str = '; '.join([f'{k}: {v}' for k, v in metrics.items()])
-
-        # Write the dataset name and the stringified metrics
-        writer.writerow([dataset_name, split, str(metrics["MSE"]), str(metrics["PCC-Gene"])])
-
-def save_metrics_to_csv_precision_analysis(path, dataset_name, split, metrics, n_decimals, example):
-    """
-    This function is desgined to store the results of a precision analysis. Saves the dataset name, MSE, PCC and the number of decimals
-    Params:
-
-        -path (str): Path to the .csv file
-        -dataset_name (str): The name of the dataset to be used as the title
-        -metrics (dict): Dictionary containing metric names and values
-        -n_decimals (int): number of decimals in the gt and prediction.
-    """
-
-    file_exists = os.path.isfile(path)
-
-    with open(path, mode='a', newline='') as file:
-        writer = csv.writer(file)
-        
-        # Write the title (dataset name) if the file does not exist
-        if not file_exists:
-            writer.writerow(["Dataset", "Split",'Decimals', 'Example', "MSE", "PCC-Gene"])
-
-        # Write the dataset name and the stringified metrics
-        writer.writerow([dataset_name, split, str(n_decimals), str(example), str(metrics["MSE"]), str(metrics["PCC-Gene"])])
         
 def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:
     """
@@ -494,116 +430,7 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
         #append split neighbors info into the complete list
         all_neighbors_info.append(split_neighbors_info)
 
-    return all_neighbors_info
-
-def define_split_nn(list_nn, list_nn_masked, split):
-    
-    """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
-    the st_data, st_masked_data and mask, where both the center spot and its neighbors are masked and used for completion.
-    The data is returned as a list of vectors of length (num_genes * num_neighbors) 
-
-    Args:
-        list_nn (_type_): list of all spots and 6 neighbors
-        list_nn_masked (_type_): lista of all spots and 6 neighbors masked
-        split (_type_): train, valid or test split
-
-    Returns:
-        tuple: contaning the st_data, the masked st_data, the mask and the max value used for normalization 
-    """
-    # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn = torch.stack(list_nn)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data = tensor_stack_nn.reshape(tensor_stack_nn.size(0), -1)
-    #shape(spot, 128*7) --> list_nn
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn_masked = torch.stack(list_nn_masked)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data_masked = tensor_stack_nn_masked.reshape(tensor_stack_nn_masked.size(0), -1)
-    #shape(spot, 128*7) --> list_nn_masked
-    mask = st_data_masked!=0
-    mask = mask.int()
-    #num_genes = int(mask.shape[1]/7)
-    #mask[:, num_genes:] = 1
-    
-    #Convertir a numpy array
-    st_data = st_data.numpy()
-    st_data_masked = st_data_masked.numpy()
-    mask = mask.numpy()
-    
-    # Normalización
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-    
-    return st_data, st_data_masked, mask, max_data
-
-def define_split_nn_center(list_nn, list_nn_masked, split):
-    
-    """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
-    the st_data, st_masked_data and mask, where only the center spot is masked and used for completion.
-    The data is returned as a list of vectors of length (num_genes * num_neighbors) 
-
-    Args:
-        list_nn (_type_): list of all spots and 6 neighbors
-        list_nn_masked (_type_): list of all spots and 6 neighbors masked (only center spot is masked)
-        split (_type_): train, valid or test split
-
-    Returns:
-        tuple: contaning the st_data, the masked st_data, the mask and the max value used for normalization 
-    """
-    # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn = torch.stack(list_nn)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data = tensor_stack_nn.reshape(tensor_stack_nn.size(0), -1)
-    #shape(spot, 128*7) --> list_nn
-    
-    num_genes = int(st_data.shape[1]/7)
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn_masked = torch.stack(list_nn_masked)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data_masked = tensor_stack_nn_masked.reshape(tensor_stack_nn_masked.size(0), -1)
-    st_data_masked[:, num_genes:] = st_data[:, num_genes:]
-    #shape(spot, 128*7) --> list_nn_masked
-
-    mask = st_data_masked!=0
-    mask = mask.int()
-    mask[:, num_genes:] = 1
-    
-    #Convertir a numpy array
-    st_data = st_data.numpy()
-    st_data_masked = st_data_masked.numpy()
-    mask = mask.numpy()
-    
-    # Normalización
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-    
-    return st_data, st_data_masked, mask, max_data    
+    return all_neighbors_info  
   
 def define_split_nn_mat(list_nn, list_nn_masked, split):
     
@@ -662,54 +489,6 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
     
     return st_data, st_data_masked, mask, max_data, min_data
-    
-def define_splits_spot(dataset, split:str, pred_layer:str):
-    """
-    Function that extract the desired split from the dataset and then prepare neccesary data for 
-    the dataloader.
-    Args:
-        -dataset (dataset SpaRED class): class that has the adata.
-        -split (str): desired split to obtain
-    Returns:
-        - st_data: spatial data
-        - st_data_masked: masked spatial data
-        - mask: mask used for calculations
-    """
-    ## Define the adata split
-    adata = dataset[dataset.obs["split"]==split]
-    slides = adata.obs["slide_id"].unique().tolist()
-    
-    # Find the min number of spots in the slides
-    spots = []
-    for slide in slides:
-        slide_adata = adata[adata.obs["slide_id"] == slide]
-        spots.append(slide_adata.shape[0])
-    min_spots = min(spots)
-    
-    # Create empty arrays to save data
-    st_data = np.empty((0, min_spots))
-    st_data_masked = np.empty((0, min_spots))
-    mask = np.empty((0, min_spots))
-    
-    for slide in slides:
-        slide_adata = adata[adata.obs["slide_id"] == slide]
-        # Define data
-        st_data = np.concatenate((st_data, slide_adata.layers[pred_layer].T[:, :min_spots]), axis = 0) 
-        # Define masked data
-        st_data_masked = np.concatenate((st_data_masked, slide_adata.layers["masked_expression_matrix"].T[:, :min_spots]), axis = 0)  
-        # Define mask
-        mask = np.concatenate((mask, slide_adata.layers["random_mask"].T[:, :min_spots]), axis = 0) 
-    
-    mask = (1-mask)
-    # En la mascara los valores masqueados son 0 y los valores reales deben ser 1
-    
-    # Normalize data
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-
-    #st used just for train
-    return st_data, st_data_masked, mask, max_data   
 
 def mask_extreme_prediction(list_nn):
     list_nn_masked = copy.deepcopy(list_nn)
