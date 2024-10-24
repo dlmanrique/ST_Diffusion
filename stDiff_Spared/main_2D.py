@@ -38,11 +38,17 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
 def main():
+    breakpoint()
     ### Wandb 
-    exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     wandb.login()
-    wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name)
-    #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
+    if args.debbug_wandb:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="debbugs", entity="spared_v2", name=exp_name + '_debbug')
+
+    else:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
+        
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
                "dataset": args.dataset, 

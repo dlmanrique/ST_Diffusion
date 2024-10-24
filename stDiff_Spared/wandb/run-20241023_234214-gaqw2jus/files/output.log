@@ -388,3 +388,83 @@ AnnData object with n_obs × n_vars = 1832 × 128
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 20%|█████▌                      | 600/3000 [13:24<44:06,  1.10s/it, noise loss:0.02353 lr:0.000016]███████████████████████████████████████▉| 1499/1500 [02:18<00:00, 10.82it/s]
+
+
+
+
+
+
+
+
+
+
+
+ 20%|█████▌                      | 600/3000 [13:48<55:14,  1.38s/it, noise loss:0.02353 lr:0.000016]               | 262/1500 [00:24<01:56, 10.66it/s]
+Traceback (most recent call last):
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/main_2D.py", line 232, in <module>
+    main()
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/main_2D.py", line 172, in main
+    normal_train_stDiff(model,
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/stDiff_train.py", line 194, in normal_train_stDiff
+    metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader,
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/utils.py", line 247, in inference_function
+    imputation = sample_stDiff(model,
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/sample.py", line 92, in sample_stDiff
+    model_output = model_sample_stDiff(model,
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/sample.py", line 21, in model_sample_stDiff
+    x_cond = x_cond.float().to(device)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/main_2D.py", line 232, in <module>
+    main()
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/main_2D.py", line 172, in main
+    normal_train_stDiff(model,
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/stDiff_train.py", line 194, in normal_train_stDiff
+    metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader,
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/utils.py", line 247, in inference_function
+    imputation = sample_stDiff(model,
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/sample.py", line 92, in sample_stDiff
+    model_output = model_sample_stDiff(model,
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/model_stDiff/sample.py", line 21, in model_sample_stDiff
+    x_cond = x_cond.float().to(device)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

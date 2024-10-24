@@ -86,7 +86,9 @@ def get_main_parser():
     parser.add_argument('--num_neighs',                     type=int,           default=18,                          help='Amount of neighbors to consider for context during imputation.')
     parser.add_argument('--num_hops',                       type=int,           default=1,                          help='Amount of graph hops to consider for context during imputation if neighborhoods are built based on proximity rings.')
     # Visualization parameters ################################################################################################################################################################
-    parser.add_argument('--gene_id', type=int, default=0, help='Gene ID to plot.')
+    parser.add_argument('--gene_id',                        type=int,           default=0,                          help='Gene ID to plot.')
+    # W&B usage parameters ####################################################################################################################################################################
+    parser.add_argument('--debbug_wandb',                     type=str2bool,      default=False,                       help='Select if the experiment is logged in w&b debbug folder. If True, then is for debbuging purposes.')
     return parser
 
 
