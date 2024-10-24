@@ -1,0 +1,155 @@
+Loading villacampa_lung_organoid dataset with the following data split:
+train data: ['V19D02-088_A1', 'V19D02-088_B1']
+val data: ['V19D02-088_C1']
+test data: ['V19D02-088_D1']
+Parameters already saved in /media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/spared/processed_data/villacampa_data/villacampa_lung_organoid/2023-12-04-23-01-20/parameters.json
+Loading main adata file from disk (/media/SSD4/dlmanrique/Spatial_Transcriptomics/ST_Diffusion/stDiff_Spared/spared/processed_data/villacampa_data/villacampa_lung_organoid/2023-12-04-23-01-20/adata.h5ad)...
+The loaded adata object looks like this:
+AnnData object with n_obs × n_vars = 1832 × 128
+    obs: 'in_tissue', 'array_row', 'array_col', 'patient', 'slide_id', 'split', 'unique_id', 'n_genes_by_counts', 'total_counts'
+    var: 'gene_ids', 'feature_types', 'genome', 'gene_symbol', 'exp_frac', 'glob_exp_frac', 'n_cells_by_counts', 'mean_counts', 'pct_dropout_by_counts', 'total_counts', 'gene_length', 'd_log1p_moran', 'log1p_avg_exp', 'd_log1p_avg_exp', 'c_log1p_avg_exp', 'c_d_log1p_avg_exp', 'c_t_log1p_avg_exp'
+    uns: 'spatial', 'spatial_neighbors'
+    obsm: 'patches_scale_1.0', 'spatial'
+    layers: 'c_d_deltas', 'c_d_log1p', 'c_deltas', 'c_log1p', 'c_t_deltas', 'c_t_log1p', 'counts', 'd_deltas', 'd_log1p', 'deltas', 'log1p', 'mask', 'tpm'
+    obsp: 'spatial_connectivities', 'spatial_distances'
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 860/860 [00:00<00:00, 14092.11it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 439/439 [00:00<00:00, 12437.60it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 533/533 [00:00<00:00, 12548.07it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 860/860 [00:00<00:00, 12883.98it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 439/439 [00:00<00:00, 12434.66it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 533/533 [00:00<00:00, 12442.61it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

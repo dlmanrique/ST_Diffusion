@@ -1,0 +1,1 @@
+{"lr": 0.00016046744893538737, "dataset": "villacampa_lung_organoid", "num_epoch": 3000, "num_heads": 16, "depth": 6, "hidden_size": 1024, "save_path": "ckpt_W&B/", "loss_type": "noise", "concat_dim": 0, "masked_loss": true, "model_type": "1D", "scheduler": true, "_timestamp": 1729741617.4894025, "_runtime": 282.72391963005066, "_step": 247, "Loss": 0.04513897241226265}
