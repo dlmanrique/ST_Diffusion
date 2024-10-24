@@ -12,6 +12,7 @@ import wandb
 import datetime 
 from spared.metrics import get_metrics
 from datetime import datetime
+from visualize_imputation import log_pred_image_extreme_completion
 
 # Get parser and parse arguments
 parser = get_main_parser()
@@ -36,6 +37,7 @@ def normal_train_stDiff(model,
                  avg_tensor,
                  wandb_logger,
                  args,
+                 adata_valid,
                  lr: float = 1e-4,
                  num_epoch: int = 1400,
                  diffusion_step: int = 1000,
@@ -81,8 +83,7 @@ def normal_train_stDiff(model,
     min_mse = np.inf
     best_mse = 0
     best_pcc = 0
-    loss_visualization = []
-    #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
     os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
     
     for epoch in t_epoch:
@@ -203,23 +204,18 @@ def normal_train_stDiff(model,
                                         device=device,
                                         args=args
                                         )
+            adata_valid.layers["diff_pred"] = imputation_data
+            log_pred_image_extreme_completion(adata_valid, args, epoch)
 
             if metrics_dict["MSE"] < min_mse:
                 min_mse = metrics_dict["MSE"]
                 best_mse = metrics_dict["MSE"]
                 best_pcc = metrics_dict["PCC-Gene"]
                 torch.save(model.state_dict(), os.path.join("Experiments", exp_name, save_path))
-            #save_metrics_to_csv(args.metrics_path, args.dataset, "valid", metrics_dict)
+
             wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
     # Save the best MSE and best PCC on the validation set
     wandb_logger.log({"best_MSE":best_mse, "best_PCC": best_pcc})
-    
-         
-    ## Plot loss    
-    #epoch_array = np.arange(num_epoch)
-    #loss_visualization = np.array(loss_visualization)
-    ## Ploting auxiliar function
-    #plot_loss(epoch_array, loss_visualization, dataset_name)
     
         
 

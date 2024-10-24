@@ -16,7 +16,7 @@ import anndata as ad
 from tqdm import tqdm
 import scanpy as sc
 from sklearn.preprocessing import StandardScaler
-
+import copy
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -711,6 +711,19 @@ def define_splits_spot(dataset, split:str, pred_layer:str):
     #st used just for train
     return st_data, st_data_masked, mask, max_data   
 
+def mask_extreme_prediction(list_nn):
+    list_nn_masked = copy.deepcopy(list_nn)
+    for i in range(len(list_nn_masked)):
+        for j in range(len(list_nn_masked[i])):
+            list_nn_masked[i][j][0][:] = 0
+    return list_nn_masked
+    
+def get_mask_extreme_completion(adata, mask):
+    mask_extreme_completion = copy.deepcopy(mask)
+    imp_values = adata.layers["mask"] #True en los valores reales y False en los valores imputados
+    mask_extreme_completion[imp_values] = 1
+    mask_extreme_completion[:,:,1:] = 0
+    return mask_extreme_completion
     
     
     

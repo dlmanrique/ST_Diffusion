@@ -1,3 +1,4 @@
 #Ignore folders with models
 stDiff_Spared/Experiments/
 stDiff_Spared/wandb/
+stDiff_Spared/results_visualizations/
