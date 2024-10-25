@@ -45,7 +45,10 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = torch.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
+    try:
+        res = arr.to(device=timesteps.device)[timesteps].float()
+    except:
+        res = torch.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)
@@ -97,9 +100,7 @@ class LossVLB():
             self.betas * (1.0 - self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
         )
         
-        self.posterior_log_variance_clipped = np.log(
-            np.append(self.posterior_variance[1], self.posterior_variance[1:])
-        )
+        self.posterior_log_variance_clipped = np.log(np.append(self.posterior_variance[1], self.posterior_variance[1:]))
 
     def q_posterior_mean_variance(self, x_start, x_t, t):
             """
@@ -125,7 +126,7 @@ class LossVLB():
         
 #TODO: posible clamping   
     def p_mean_variance(
-        self, model_output, x, t, clip_denoised=False, denoised_fn=None, model_kwargs=None
+        self, model, x, t, cond, clip_denoised=False, denoised_fn=None, model_kwargs=None
     ):
         """
         Apply the model to get p(x_{t-1} | x_t), as well as a prediction of
@@ -154,6 +155,8 @@ class LossVLB():
         assert t.shape == (B,)
         #TODO: ajustar entrada al modelo
         #model_output = model(x, self._scale_timesteps(t), **model_kwargs)
+        breakpoint()
+        model_output = model(x, t, cond)
         model_output, model_var_values = torch.split(model_output, C, dim=1)
         
         #Segun el paper es mejor hacer esto (else)
@@ -181,11 +184,13 @@ class LossVLB():
             model_variance = torch.exp(model_log_variance)
         """
         
-        def predict_xstart_from_eps(self, x_t, t, noise):
+        def predict_xstart_from_eps(x_t, t, noise):
             """ Get x0 from xt, noise.
-            """        
-            s1 = self.sqrt_inv_alphas_cumprod[t]
-            s2 = self.sqrt_inv_alphas_cumprod_minus_one[t]
+            """ 
+            breakpoint()  
+                 
+            s1 = self.sqrt_inv_alphas_cumprod.to(device=t.device)[t]
+            s2 = self.sqrt_inv_alphas_cumprod_minus_one.to(device=t.device)[t]
             
             s1 = s1.reshape(-1, 1, 1).to(x_t.device)
             s2 = s2.reshape(-1, 1, 1).to(x_t.device)
@@ -193,7 +198,7 @@ class LossVLB():
             x0 = s1 * x_t - s2 * noise
             return torch.clamp(x0,min=-1,max=1)
 
-        pred_xstart = predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
+        pred_xstart = predict_xstart_from_eps(x_t=x, t=t, noise=model_output)
         
         model_mean, _, _ = self.q_posterior_mean_variance(x_start=pred_xstart, x_t=x, t=t)
 
@@ -206,7 +211,7 @@ class LossVLB():
 
 
     def _vb_terms_bpd(
-        self, model_output, x_start, x_t, t, clip_denoised=True, model_kwargs=None):
+        self, model, x_start, x_t, t, cond, clip_denoised=True, model_kwargs=None):
         """
         Get a term for the variational lower-bound.
         The resulting units are bits (rather than nats, as one might expect).
@@ -215,11 +220,12 @@ class LossVLB():
                     - 'output': a shape [N] tensor of NLLs or KLs.
                     - 'pred_xstart': the x_0 predictions.
         """
+        
         true_mean, _, true_log_variance_clipped = self.q_posterior_mean_variance(
             x_start=x_start, x_t=x_t, t=t
         )
         out = self.p_mean_variance(
-            model_output, x_t, t, clip_denoised=clip_denoised, model_kwargs=model_kwargs
+            model, x_t, t, cond, clip_denoised=clip_denoised, model_kwargs=model_kwargs
         )
         kl = normal_kl(
             true_mean, true_log_variance_clipped, out["mean"], out["log_variance"]
@@ -246,12 +252,13 @@ class NoiseScheduler():
                  beta_end=0.02,
                  beta_schedule="linear"):
         # forward diffusion step
-        self.loss_vdl = LossVLB(num_timesteps=1000,
-                                beta_start=0.0001,
-                                beta_end=0.02,
-                                beta_schedule="linear")
         
         self.num_timesteps = num_timesteps
+        
+        self.loss_vdl = LossVLB(num_timesteps,
+                                beta_start,
+                                beta_end,
+                                beta_schedule)
         
         if beta_schedule == "linear":
             self.betas = torch.linspace(
@@ -330,6 +337,7 @@ class NoiseScheduler():
              model_output, 
              timestep, 
              sample,
+             cond,
              model_pred_type: str='noise'):
         """ reverse diffusioin
 
@@ -343,6 +351,7 @@ class NoiseScheduler():
             x_t-1, noise
         """        
         t = timestep
+        breakpoint()
         
         if model_pred_type=='noise':
             pred_original_sample = self.reconstruct_x0(sample, t, model_output)
@@ -354,7 +363,7 @@ class NoiseScheduler():
         pred_prev_sample = self.q_posterior(pred_original_sample, sample, t)  # x_t-1 mean
         
         #variance = 0
-        variance = self.loss_vdl._vb_terms_bpd(model_output, pred_original_sample, sample, t)["output"]
+        variance = self.loss_vdl._vb_terms_bpd(model_output, pred_original_sample, sample, t, cond)["output"]
         
         try:
             if t > 0:

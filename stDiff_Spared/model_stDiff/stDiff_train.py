@@ -5,7 +5,7 @@ import torch.nn as nn
 from tqdm import tqdm
 from ray.air import session
 import os
-from .stDiff_scheduler import NoiseScheduler
+from .stDiff_scheduler import NoiseScheduler, LossVLB
 from utils import *
 import matplotlib.pyplot as plt
 import wandb
@@ -25,7 +25,7 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
-
+ 
 def normal_train_stDiff(model,
                  train_dataloader,
                  valid_dataloader,
@@ -63,6 +63,11 @@ def normal_train_stDiff(model,
         NotImplementedError: _description_
     """
     noise_scheduler = NoiseScheduler(
+        num_timesteps=diffusion_step,
+        beta_schedule='cosine'
+    )
+    
+    loss_vdb = LossVLB(
         num_timesteps=diffusion_step,
         beta_schedule='cosine'
     )
@@ -119,7 +124,21 @@ def normal_train_stDiff(model,
             # x_noisy.shape: torch.Size([2048, 33])
             cond = [x_cond, mask]
             
-            pred = model(x_noisy, t=timesteps.to(device), y=cond) 
+            breakpoint()
+            model_output = model(x_noisy, t=timesteps.to(device), y=cond) 
+            B, C = x.shape[:2]
+            model_output, model_var_values = torch.split(model_output, C, dim=1)
+            
+            #Sacado del código de improved denoising deffusion models
+            frozen_out = torch.cat([model_output.detach(), model_var_values], dim=1)
+            
+            term_vdb = loss_vdb._vb_terms_bpd(model=lambda *args, r=frozen_out: r, 
+                                             x_start=x, 
+                                             x_t=x_noisy, 
+                                             t=timesteps, 
+                                             cond=cond[0], 
+                                             clip_denoised=False)["output"]
+            breakpoint()
             #pred = model(x_noisy, t=timesteps.to(device), y=x_cond) 
             # noise_pred.shape: torch.Size([2048, 33])
             
@@ -134,7 +153,7 @@ def normal_train_stDiff(model,
                                          model_pred_type=pred_type)
                  
             """
-                
+            pred = model_output
             mask_boolean = (1-mask).bool() #1 = False y 0 = True
             mask_boolean = mask_boolean[:,:,0]  
             #noise = noise*max_norm[0] 
@@ -147,43 +166,35 @@ def normal_train_stDiff(model,
                 #noise = denormalize_from_minus_one_to_one(noise, min_norm[0], max_norm[0])
                 if args.masked_loss:
                     #calculamos loss solo sobre los datos masqueados
-                    loss = criterion(noise[mask_boolean], pred[mask_boolean])
+                    loss_mse = criterion(noise[mask_boolean], pred[mask_boolean])
                 else:
                     #calculasmos loss sobre todos los datos
-                    loss = criterion(noise, pred)
+                    loss_mse = criterion(noise, pred)
             
-            elif args.loss_type == "x_start":
-                #x = x*max_norm[0] 
-                pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
-                x = x[:,:,0]
-                x = denormalize_from_minus_one_to_one(x, min_norm[0], max_norm[0])
-                if args.masked_loss:
-                    loss = criterion(x[mask_boolean], pred[mask_boolean])
-                else:
-                    loss = criterion(x, pred)
-            
-            elif args.loss_type == "x_previous":
-                pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
-                x_t_1 = noise_scheduler.q_posterior(x, x_t, timesteps.detach().cpu())
-                x_t_1 = x_t_1[:,:,0]
-                x_t_1 = denormalize_from_minus_one_to_one(x_t_1, min_norm[0], max_norm[0])
-                if args.masked_loss:
-                    loss = criterion(x_t_1[mask_boolean], pred[mask_boolean])
-                else:    
-                    loss = criterion(x_t_1, pred)
-            
+            #Haria falta multiplicar esto por un lambda
+            breakpoint()
+            lambda_vdl = 1
+            loss = loss_mse + lambda_vdl*term_vdb
             #breakpoint()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore
             optimizer.step()
             optimizer.zero_grad()
+            #Calcular losses
             epoch_loss += loss.item()
+            epoch_mse_loss += loss_mse.item()
+            epoch_vdb_loss += loss_vdb.item()
 
         if args.scheduler:
             scheduler.step()  # Update the learning rate
         
         epoch_loss = epoch_loss / (i + 1)  # type: ignore
-        wandb_logger.log({"Loss": epoch_loss})
+        epoch_mse_loss = epoch_mse_loss / (i + 1)
+        epoch_vdb_loss = epoch_vdb_loss / (i + 1)
+        
+        wandb_logger.log({"Loss Total": epoch_loss,
+                          "Loss MSE": epoch_mse_loss,
+                          "Loss VDB": epoch_vdb_loss,})
         #loss_visualization.append(epoch_loss)
         if is_tqdm:
             current_lr = scheduler.get_last_lr()[0]# Get the current learning rate

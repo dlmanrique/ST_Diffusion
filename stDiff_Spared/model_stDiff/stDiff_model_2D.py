@@ -208,7 +208,7 @@ class FinalLayer(nn.Module):
         super().__init__()
         self.norm_final = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         # Linear for projection into output shape
-        self.linear = nn.Linear(hidden_size, out_size, bias=True)
+        self.linear = nn.Linear(hidden_size, out_size*2, bias=True)
         # AdaLN modulation
         
         self.adaLN_modulation = nn.Sequential(

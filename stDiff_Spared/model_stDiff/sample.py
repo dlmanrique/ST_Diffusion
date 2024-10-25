@@ -79,6 +79,7 @@ def sample_stDiff(model,
     #BoDiffusion
     #gt = gt.unsqueeze(2)
     x_t =  x_t * (1 - mask) + gt * mask
+    cond = gt * mask
     #agregando ruido en lo que no esta maskeado y le sumo el GT (multiplicado por la mascara)
     
     if sample_intermediate:
@@ -115,6 +116,7 @@ def sample_stDiff(model,
             x_t, _ = noise_scheduler.step(model_output,  # noise
                                             torch.from_numpy(np.array(time)).long().to(device),
                                             x_t,
+                                            cond,
                                             model_pred_type=args.loss_type)
         
         if mask is not None:
