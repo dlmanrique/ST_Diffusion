@@ -47,7 +47,8 @@ def main():
                "masked_loss": args.masked_loss,
                "model_type": args.model_type,
                "scheduler": args.scheduler,
-               "layer": args.prediction_layer})
+               "layer": args.prediction_layer,
+               "normalizacion": args.normalization_type})
     
     ### Parameters
     # Define the training parameters
@@ -77,19 +78,20 @@ def main():
     list_nn_masked = mask_extreme_prediction(list_nn)
     ### Define splits
     ## Train
-    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train")
+    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
     ## Validation
-    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val")
+    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
     ## Test
     if "test" in splits:
-        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test")
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_test)
     #breakpoint()
     # Definir un tensor de promedio en caso de predecir una capa delta
     num_genes = adata.shape[1]
     if "deltas" in pred_layer:
-        avg_tensor = torch.tensor(adata.var["c_d_log1p_avg_exp"]).view(1, num_genes)
+        format = args.prediction_layer.split("deltas")[0]
+        avg_tensor = torch.tensor(adata.var[f"{format}log1p_avg_exp"]).view(1, num_genes)
     else:
         avg_tensor = None
     
@@ -121,12 +123,6 @@ def main():
     num_nn = st_data_train[0].shape
 
     # Define the model
-    """
-    if num_nn > 1024:
-        hidden_size = 1024
-    if num_nn > 2048:
-        hidden_size = 2048
-    """
     model = DiT_stDiff(
         input_size=num_nn,  
         hidden_size=hidden_size, 

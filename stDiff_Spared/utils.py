@@ -40,6 +40,7 @@ def get_main_parser():
     parser.add_argument("--concat_dim",                        type=int,           default=0,                                help='which dimension to concat the condition')
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
+    parser.add_argument("--normalization_type",                        type=str,           default="0-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
     parser.add_argument('--lr',type=float,default=0.00016046744893538737,help='lr to use')
@@ -267,12 +268,19 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     mask_boolean = mask_boolean[:,:,0]
     data = data[:,:,0]
     imputation = imputation[:,:,0]
-        
-    #data = data*max_norm
-    #imputation = imputation*max_norm
     
-    data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
-    imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
+    
+    if args.normalization_type == "0-1":
+        #Normalización 0 a 1 
+        data = data*max_norm
+        imputation = imputation*max_norm
+    elif args.normalization_type == "-1-1":
+        #Normalización -1 a 1
+        data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
+        imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
+    else:
+        assert("La entrada de la normalización no es válida")
+    
     
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
@@ -287,37 +295,6 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     
     return metrics_dict, imputation
 
-def define_splits(dataset, split:str, pred_layer:str):
-    """
-    Function that extract the desired split from the dataset and then prepare neccesary data for 
-    the dataloader.
-    Args:
-        -dataset (dataset SpaRED class): class that has the adata.
-        -split (str): desired split to obtain
-    Returns:
-        - st_data: spatial data
-        - st_data_masked: masked spatial data
-        - mask: mask used for calculations
-    """
-    ## Define the adata split
-    adata = dataset[dataset.obs["split"]==split]
-    
-    # Define data
-    st_data = adata.layers[pred_layer]
-    # Define masked data
-    st_data_masked = adata.layers["masked_expression_matrix"]
-    # Define mask
-    mask = adata.layers["random_mask"]
-    mask = (1-mask)
-    # En la mascara los valores masqueados son 0 y los valores reales deben ser 1
-    
-    # Normalize data
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-
-    #st used just for train
-    return st_data, st_data_masked, mask, max_data
         
 def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:
     """
@@ -432,7 +409,7 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
 
     return all_neighbors_info  
   
-def define_split_nn_mat(list_nn, list_nn_masked, split):
+def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     
     """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
     the st_data, st_masked_data and mask, where bothe the center spot and its neighbors are masked and used for completion.
@@ -480,13 +457,20 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     mask = mask.numpy()
     
     # Normalización
-    #max_data = st_data.max()
-    #st_data = st_data/max_data
-    #st_data_masked = st_data_masked/max_data
     max_data = st_data.max()
     min_data = st_data.min()
-    st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
-    st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    
+    if args.normalization_type == "0-1":
+        #Normalización 0 a 1 
+        st_data = st_data/max_data
+        st_data_masked = st_data_masked/max_data
+    elif args.normalization_type == "-1-1":
+        #Normalización -1 a 1
+        st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    else:
+        assert("La entrada de la normalización no es válida")
+    
     
     return st_data, st_data_masked, mask, max_data, min_data
 
