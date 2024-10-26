@@ -117,6 +117,7 @@ def sample_stDiff(model,
                                             torch.from_numpy(np.array(time)).long().to(device),
                                             x_t,
                                             cond,
+                                            model,
                                             model_pred_type=args.loss_type)
         
         if mask is not None:

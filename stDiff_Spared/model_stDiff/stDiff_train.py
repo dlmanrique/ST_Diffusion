@@ -67,7 +67,7 @@ def normal_train_stDiff(model,
         beta_schedule='cosine'
     )
     
-    loss_vdb = LossVLB(
+    class_loss_vdb = LossVLB(
         num_timesteps=diffusion_step,
         beta_schedule='cosine'
     )
@@ -95,6 +95,8 @@ def normal_train_stDiff(model,
     
     for epoch in t_epoch:
         epoch_loss = 0.
+        epoch_mse_loss = 0.
+        epoch_vdb_loss = 0.
         for i, (x, x_cond, mask) in enumerate(train_dataloader): 
             #The mask is a binary array, the 1's are the masked data (0 in the values we want to predict)
             #En LDM es alreves entonces si algo tocaría voltearlo
@@ -124,7 +126,6 @@ def normal_train_stDiff(model,
             # x_noisy.shape: torch.Size([2048, 33])
             cond = [x_cond, mask]
             
-            breakpoint()
             model_output = model(x_noisy, t=timesteps.to(device), y=cond) 
             B, C = x.shape[:2]
             model_output, model_var_values = torch.split(model_output, C, dim=1)
@@ -132,38 +133,22 @@ def normal_train_stDiff(model,
             #Sacado del código de improved denoising deffusion models
             frozen_out = torch.cat([model_output.detach(), model_var_values], dim=1)
             
-            term_vdb = loss_vdb._vb_terms_bpd(model=lambda *args, r=frozen_out: r, 
+            term_vdb = class_loss_vdb._vb_terms_bpd(model=lambda *args, r=frozen_out: r, 
                                              x_start=x, 
                                              x_t=x_noisy, 
                                              t=timesteps, 
                                              cond=cond[0], 
                                              clip_denoised=False)["output"]
-            breakpoint()
-            #pred = model(x_noisy, t=timesteps.to(device), y=x_cond) 
-            # noise_pred.shape: torch.Size([2048, 33])
-            
-            # loss = criterion(noise_pred, noise)
-            #max_train = torch.tensor(max_norm[0]).to(device)
-            #loss = criterion((noise*(1-mask))*max_train, (noise_pred*(1-mask))*max_train)
-            #loss = criterion(noise*(1-mask), noise_pred*(1-mask))
-            """
-            x_previous, x_start = noise_scheduler.step(pred,  # noise
-                                         timesteps.detach().cpu(),
-                                         x_t,
-                                         model_pred_type=pred_type)
-                 
-            """
+
+
             pred = model_output
             mask_boolean = (1-mask).bool() #1 = False y 0 = True
             mask_boolean = mask_boolean[:,:,0]  
-            #noise = noise*max_norm[0] 
-            #pred = pred*max_norm[0] 
             pred = pred[:,:,0] 
-            #pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
             
             if args.loss_type == "noise":
                 noise = noise[:,:,0]
-                #noise = denormalize_from_minus_one_to_one(noise, min_norm[0], max_norm[0])
+                
                 if args.masked_loss:
                     #calculamos loss solo sobre los datos masqueados
                     loss_mse = criterion(noise[mask_boolean], pred[mask_boolean])
@@ -172,9 +157,10 @@ def normal_train_stDiff(model,
                     loss_mse = criterion(noise, pred)
             
             #Haria falta multiplicar esto por un lambda
-            breakpoint()
-            lambda_vdl = 1
-            loss = loss_mse + lambda_vdl*term_vdb
+            loss_vdb =  term_vdb.mean()
+            lambda_vdl = 1/1000
+            
+            loss = loss_mse + lambda_vdl*loss_vdb
             #breakpoint()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore

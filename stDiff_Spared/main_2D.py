@@ -9,6 +9,7 @@ from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 import anndata as ad
 from spared.datasets import get_dataset
+from pathlib import Path
 
 from utils import *
 
@@ -89,7 +90,8 @@ def main():
     # Definir un tensor de promedio en caso de predecir una capa delta
     num_genes = adata.shape[1]
     if "deltas" in pred_layer:
-        avg_tensor = torch.tensor(adata.var["c_d_log1p_avg_exp"]).view(1, num_genes)
+        format = args.prediction_layer.split("deltas")[0]
+        avg_tensor = torch.tensor(adata.var[f"{format}log1p_avg_exp"]).view(1, num_genes)
     else:
         avg_tensor = None
     
@@ -183,7 +185,9 @@ def main():
 
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
-        torch.save(imputation_data, os.path.join('Predictions', 'predictions_villacampa_mouse_brain_v2.pt'))
+        
+        Path("Predictions").mkdir(parents=True, exist_ok=True)    
+        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
         log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})

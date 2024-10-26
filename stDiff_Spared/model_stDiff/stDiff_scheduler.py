@@ -155,7 +155,6 @@ class LossVLB():
         assert t.shape == (B,)
         #TODO: ajustar entrada al modelo
         #model_output = model(x, self._scale_timesteps(t), **model_kwargs)
-        breakpoint()
         model_output = model(x, t, cond)
         model_output, model_var_values = torch.split(model_output, C, dim=1)
         
@@ -187,7 +186,6 @@ class LossVLB():
         def predict_xstart_from_eps(x_t, t, noise):
             """ Get x0 from xt, noise.
             """ 
-            breakpoint()  
                  
             s1 = self.sqrt_inv_alphas_cumprod.to(device=t.device)[t]
             s2 = self.sqrt_inv_alphas_cumprod_minus_one.to(device=t.device)[t]
@@ -227,15 +225,16 @@ class LossVLB():
         out = self.p_mean_variance(
             model, x_t, t, cond, clip_denoised=clip_denoised, model_kwargs=model_kwargs
         )
-        kl = normal_kl(
-            true_mean, true_log_variance_clipped, out["mean"], out["log_variance"]
-        )
+        
+        #TODO: se esta sacando la KL divergencia solo en el spot central (partiendo de que hacemos lo mismo con el ruido predicho)
+        #TODO: se presta para experimentación
+        kl = normal_kl(true_mean[:,:,0], true_log_variance_clipped[:,:,0], out["mean"][:,:,0], out["log_variance"][:,:,0])
         kl = mean_flat(kl) / np.log(2.0)
         
         #Se discretiza la salida en imagenes
         #decoder_nll = -discretized_gaussian_log_likelihood(x_start, means=out["mean"], log_scales=0.5 * out["log_variance"])
         #assert decoder_nll.shape == x_start.shape
-        decoder_nll = GaussianLogLikelihood(x_start, out["mean"], out["variance"])
+        decoder_nll = GaussianLogLikelihood(x_start[:,:,0], out["mean"][:,:,0], out["variance"][:,:,0])
         decoder_nll = mean_flat(decoder_nll) / np.log(2.0)
 
         # At the first timestep return the decoder NLL,
@@ -338,6 +337,7 @@ class NoiseScheduler():
              timestep, 
              sample,
              cond,
+             model,
              model_pred_type: str='noise'):
         """ reverse diffusioin
 
@@ -349,9 +349,27 @@ class NoiseScheduler():
 
         Returns:
             x_t-1, noise
-        """        
+        """ 
+        B, C = sample.shape[:2]
+        t = timestep.repeat(B) 
+        
+        out = self.loss_vdl.p_mean_variance(
+            model, sample, t, cond, clip_denoised=False
+        )
+        
+        noise = torch.randn_like(sample)
+        #nonzero_mask is always equal to 1 if t in different from 0
+        nonzero_mask = ((t != 0).float().view(-1, *([1]* (len(sample.shape)-1))))
+        
+        sample = out["mean"] + nonzero_mask * torch.exp(0.5 * out["log_variance"]) * noise
+        
+        return sample, out["pred_xstart"]
+
+        """
         t = timestep
-        breakpoint()
+        
+        B, C = sample.shape[:2]
+        model_output, model_var_values = torch.split(model_output, C, dim=1)
         
         if model_pred_type=='noise':
             pred_original_sample = self.reconstruct_x0(sample, t, model_output)
@@ -363,21 +381,24 @@ class NoiseScheduler():
         pred_prev_sample = self.q_posterior(pred_original_sample, sample, t)  # x_t-1 mean
         
         #variance = 0
-        variance = self.loss_vdl._vb_terms_bpd(model_output, pred_original_sample, sample, t, cond)["output"]
+        variance = self.loss_vdl._vb_terms_bpd(model, pred_original_sample, sample, t.repeat(B), cond)["output"]
         
         try:
             if t > 0:
                 noise = torch.randn_like(model_output)
-                variance = (self.get_variance(t) ** 0.5) * noise
+                #variance = (self.get_variance(t) ** 0.5) * noise
+                variance = variance * noise
         except:
             noise = torch.randn_like(model_output)
-            variance = self.get_variance(t) ** 0.5
-            variance = variance.view(len(timestep), 1, 1).expand(-1, noise.shape[1], noise.shape[2]).to(noise.device)
+            #variance = self.get_variance(t) ** 0.5 
+            variance = variance.view(B, 1, 1).expand(-1, noise.shape[1], noise.shape[2]).to(noise.device)
             variance =  variance * noise
         
+        breakpoint()
         pred_prev_sample = pred_prev_sample + variance  # x_t-1 Reparameteriation
         
-        return pred_prev_sample  ,pred_original_sample  
+        return pred_prev_sample  ,pred_original_sample
+        """
 
     def add_noise(self, x_start, x_noise, timesteps):  # forward
         # input x_0,noise,t , output x_t
