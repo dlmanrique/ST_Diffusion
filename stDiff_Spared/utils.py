@@ -42,7 +42,7 @@ def get_main_parser():
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
-    parser.add_argument('--lr',type=float,default=0.00016046744893538737,help='lr to use')
+    parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
     parser.add_argument('--num_epoch', type=int, default=3000, help='Number of training epochs')
     parser.add_argument('--diffusion_steps', type=int, default=1500, help='Number of diffusion steps')
     parser.add_argument('--batch_size', type=int, default=128, help='The batch size to train model')
@@ -52,7 +52,7 @@ def get_main_parser():
     parser.add_argument('--step_size',                       type=float,         default=600,                         help='Step size to use in learning rate scheduler')
     parser.add_argument("--scheduler",                        type=str2bool,           default=True,                                help='Whether to use LR scheduler or not')
     # Model parameters ########################################################################################################################################################################
-    parser.add_argument('--depth', type=int, default=6, help='' )
+    parser.add_argument('--depth', type=int, default=12, help='' )
     parser.add_argument('--hidden_size', type=int, default=1024, help='Size of latent space')
     parser.add_argument('--head', type=int, default=16, help='')
     # Transformer model parameters ############################################################################################################################################################

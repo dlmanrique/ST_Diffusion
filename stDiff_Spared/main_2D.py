@@ -5,8 +5,6 @@ import warnings
 import torch
 
 from model_stDiff.stDiff_model_2D import DiT_stDiff
-from model_stDiff.stDiff_model_2D_Conv2D import DiT_stDiff_2D
-from model_stDiff.stDiff_model_BoDiffusion import DiT_stDiff_BoDiffusion
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 import anndata as ad
@@ -148,26 +146,7 @@ def main():
             args=args,
             mlp_ratio=4.0,
             dit_type='dit')
-    elif args.model_type == "2D":
-        model = DiT_stDiff_2D(
-            input_size=num_nn,  
-            hidden_size=hidden_size, 
-            depth=depth,
-            num_heads=head,
-            classes=6, 
-            args=args,
-            mlp_ratio=4.0,
-            dit_type='dit')
-    elif args.model_type == "BoDiffusion":
-        model = DiT_stDiff_BoDiffusion(
-            input_size=num_nn,  
-            hidden_size=hidden_size, 
-            depth=depth,
-            num_heads=head,
-            classes=6, 
-            args=args,
-            mlp_ratio=4.0,
-            dit_type='dit')
+
     
     model.to(device)
     save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
