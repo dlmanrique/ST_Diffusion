@@ -89,7 +89,6 @@ def normal_train_stDiff(model,
     min_mse = np.inf
     best_mse = 0
     best_pcc = 0
-    loss_visualization = []
     #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
     

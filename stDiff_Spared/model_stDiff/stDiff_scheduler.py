@@ -149,13 +149,13 @@ class LossVLB():
         """
         if model_kwargs is None:
             model_kwargs = {}
-
         #TODO: revisar este assert
         B, C = x.shape[:2]
         assert t.shape == (B,)
         #TODO: ajustar entrada al modelo
         #model_output = model(x, self._scale_timesteps(t), **model_kwargs)
-        model_output = model(x, t, cond)
+        with torch.no_grad():
+            model_output = model(x, t, cond)
         model_output, model_var_values = torch.split(model_output, C, dim=1)
         
         #Segun el paper es mejor hacer esto (else)
@@ -315,7 +315,7 @@ class NoiseScheduler():
         s2 = s2.reshape(-1, 1, 1).to(x_t.device)
         
         mu = s1 * x_0 + s2 * x_t
-        #TODO: agregar clamp
+        #TODO: agregar clamp (talvez)
         return mu
 
     def get_variance(self, t):
@@ -338,7 +338,8 @@ class NoiseScheduler():
              sample,
              cond,
              model,
-             model_pred_type: str='noise'):
+             model_pred_type: str='noise'
+             ):
         """ reverse diffusioin
 
         Args:
@@ -350,9 +351,9 @@ class NoiseScheduler():
         Returns:
             x_t-1, noise
         """ 
+        
         B, C = sample.shape[:2]
         t = timestep.repeat(B) 
-        
         out = self.loss_vdl.p_mean_variance(
             model, sample, t, cond, clip_denoised=False
         )
@@ -394,7 +395,6 @@ class NoiseScheduler():
             variance = variance.view(B, 1, 1).expand(-1, noise.shape[1], noise.shape[2]).to(noise.device)
             variance =  variance * noise
         
-        breakpoint()
         pred_prev_sample = pred_prev_sample + variance  # x_t-1 Reparameteriation
         
         return pred_prev_sample  ,pred_original_sample

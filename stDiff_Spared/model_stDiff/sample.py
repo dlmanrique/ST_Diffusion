@@ -97,6 +97,7 @@ def sample_stDiff(model,
                                         time=time,  # t
                                         is_condi=is_condi,
                                         condi_flag=True)
+            
             if is_classifier_guidance:
                 model_output_uncondi = model_sample_stDiff(model,
                                                     device=device,
@@ -118,8 +119,9 @@ def sample_stDiff(model,
                                             x_t,
                                             cond,
                                             model,
-                                            model_pred_type=args.loss_type)
-        
+                                            model_pred_type=args.loss_type
+                                            )
+
         if mask is not None:
             x_t = x_t * (1. - mask) + mask * gt  
 

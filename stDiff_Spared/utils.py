@@ -244,7 +244,6 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
         num_timesteps=diffusion_step,
         beta_schedule='cosine'
     )
-    
     # inference using test split
     imputation = sample_stDiff(model,
                         dataloader=dataloader,
