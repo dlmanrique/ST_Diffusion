@@ -342,7 +342,6 @@ class DiT_stDiff(nn.Module):
         nn.init.constant_(self.out_layer.linear.bias, 0)
 
     def forward(self, x, t, y,**kwargs): 
-        breakpoint()
         x = x.float()
         x = self.in_layer(x)
         t = self.time_emb(t)
