@@ -179,7 +179,7 @@ def main():
 
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
-        torch.save(imputation_data, os.path.join('Predictions', 'predictions_villacampa_mouse_brain_v2.pt'))
+        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
         log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})

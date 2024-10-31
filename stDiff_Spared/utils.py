@@ -274,7 +274,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
         #Normalización 0 a 1 
         data = data*max_norm
         imputation = imputation*max_norm
-    elif args.normalization_type == "-1-1":
+    elif args.normalization_type == "1-1":
         #Normalización -1 a 1
         data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
         imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
@@ -461,10 +461,12 @@ def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     min_data = st_data.min()
     
     if args.normalization_type == "0-1":
+        print("normalización 0 a 1")
         #Normalización 0 a 1 
         st_data = st_data/max_data
         st_data_masked = st_data_masked/max_data
-    elif args.normalization_type == "-1-1":
+    elif args.normalization_type == "1-1":
+        print("normalización -1 a 1")
         #Normalización -1 a 1
         st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
         st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask

@@ -96,6 +96,7 @@ def normal_train_stDiff(model,
             x, x_cond = x.float().to(device), x_cond.float().to(device)
 
             noise = torch.randn(x.shape).to(device)
+            #torch.rand_like
             # noise.shape: torch.Size([2048, 33])
             
             timesteps = torch.randint(1, diffusion_step, (x.shape[0],)).long()
