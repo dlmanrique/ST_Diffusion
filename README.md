@@ -1,6 +1,9 @@
 # ST_Diffusion
 
-Para ejecutar el codigo se deben descargar los datos de ejemplo desde este link: https://drive.google.com/file/d/1wG7OchbLVhFjrhfX49q1tUUwE1n4O3vS/view?usp=drive_link
+Para ejecutar el codigo se deben descargar los datos de ejemplo desde este link:
+
+https://drive.google.com/file/d/1wG7OchbLVhFjrhfX49q1tUUwE1n4O3vS/view?usp=drive_link
+
 En el link se encuentra un archivo llamado 'adata.h5ad'. Este archivo se debe colocar en el siguiente folder:  'stDiff_Spared/Example_dataset/'.
 
 Comandos para configurar en environment:
