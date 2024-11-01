@@ -11,6 +11,7 @@ Comandos para configurar en environment:
 cd stDiff_Spared
 conda create -n st_diff python=3.11.5
 pip install -r requirements.txt
+conda activate st_diff
 ```
 
 Comandos para ejecutar el código:
