@@ -93,13 +93,23 @@ def get_main_parser():
     return parser
 
 
+def normalize_to_cero_to_one(X, X_max, X_min):
+    # Apply the normalization formula to 0-1
+    X_norm = (X-X_min)/(X_max - X_min)
+    return X_norm
+
+def denormalize_from_cero_to_one(X_norm, X_max, X_min):
+    # Apply the denormalization formula 
+    X_denorm = (X_norm*(X_max - X_min)) + X_min
+    return X_denorm    
+    
 def normalize_to_minus_one_to_one(X, X_max, X_min):
-    # Apply the normalization formula
+    # Apply the normalization formula to -1-1
     X_norm = 2 * (X - X_min) / (X_max - X_min) - 1
     return X_norm
 
-def denormalize_from_minus_one_to_one(X_norm, X_min, X_max):
-    # Apply the denormalization formula
+def denormalize_from_minus_one_to_one(X_norm, X_max, X_min):
+    # Apply the denormalization formula 
     X_denorm = ((X_norm + 1) / 2) * (X_max - X_min) + X_min
     return X_denorm
 
@@ -272,14 +282,14 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     
     if args.normalization_type == "0-1":
         #Normalización 0 a 1 
-        data = data*max_norm
-        imputation = imputation*max_norm
+        data = denormalize_from_cero_to_one(data, max_norm, min_norm)
+        imputation = denormalize_from_cero_to_one(imputation, max_norm, min_norm)
     elif args.normalization_type == "1-1":
         #Normalización -1 a 1
-        data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
-        imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
+        data = denormalize_from_minus_one_to_one(data, max_norm, min_norm)
+        imputation = denormalize_from_minus_one_to_one(imputation, max_norm, min_norm)
     else:
-        assert("La entrada de la normalización no es válida")
+        raise ValueError("Error: La entrada de la normalización no es válida")
     
     
     if avg_tensor != None:
@@ -463,15 +473,15 @@ def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     if args.normalization_type == "0-1":
         print("normalización 0 a 1")
         #Normalización 0 a 1 
-        st_data = st_data/max_data
-        st_data_masked = st_data_masked/max_data
+        st_data = normalize_to_cero_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_cero_to_one(st_data_masked, max_data, min_data)*mask
     elif args.normalization_type == "1-1":
         print("normalización -1 a 1")
         #Normalización -1 a 1
         st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
         st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
     else:
-        assert("La entrada de la normalización no es válida")
+        raise ValueError("Error: La entrada de la normalización no es válida")
     
     
     return st_data, st_data_masked, mask, max_data, min_data

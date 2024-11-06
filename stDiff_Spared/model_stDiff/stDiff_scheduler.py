@@ -87,7 +87,16 @@ class NoiseScheduler():
         s2 = s2.reshape(-1, 1, 1).to(x_t.device)
         
         x0 = s1 * x_t - s2 * noise
-        return torch.clamp(x0,min=-1,max=1)
+        if args.normalization_type == "0-1":
+            torch.clamp(x0, min=0, max=1)
+            
+        elif args.normalization_type == "1-1":
+            torch.clamp(x0, min=-1, max=1)
+            
+        else:
+            raise ValueError("Error: La entrada de la normalización no es válida")
+           
+        return x0
     
 
     def q_posterior(self, x_0, x_t, t):
@@ -158,7 +167,7 @@ class NoiseScheduler():
         
         pred_prev_sample = pred_prev_sample + variance  # x_t-1 Reparameteriation
         
-        return pred_prev_sample  ,pred_original_sample  
+        return pred_prev_sample, pred_original_sample  
 
     def add_noise(self, x_start, x_noise, timesteps):  # forward
         # input x_0,noise,t , output x_t
