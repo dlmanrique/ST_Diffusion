@@ -1,14 +1,13 @@
-import numpy as np
-import pandas as pd
 import os
 import warnings
 import torch
+import scanpy as sc
+
 
 from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
-import anndata as ad
-from spared.datasets import get_dataset
+
 
 from utils import *
 
@@ -30,11 +29,20 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
+if args.vlo == False:
+    from spared.datasets import get_dataset
+
+
 def main():
     ### Wandb 
-    exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     wandb.login()
-    wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name)
+    if args.debbug_wandb:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="debbugs", entity="spared_v2", name=exp_name + '_debbug')
+
+    else:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
     #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
@@ -62,8 +70,12 @@ def main():
     device = torch.device('cuda')
 
     # Get dataset
-    dataset = get_dataset(args.dataset)
-    adata = dataset.adata
+    if args.vlo:
+        # Carga el archivo .h5ad
+        adata = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
+    else:
+        dataset = get_dataset(args.dataset)
+        adata = dataset.adata
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
     # Masking
@@ -76,6 +88,7 @@ def main():
     list_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
     #list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
     list_nn_masked = mask_extreme_prediction(list_nn)
+    
     ### Define splits
     ## Train
     st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)

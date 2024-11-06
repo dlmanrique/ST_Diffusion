@@ -1,22 +1,19 @@
-
 import os
 import numpy as np
 import warnings
 import torch
 import anndata as ad
-import csv
 import argparse
-import matplotlib.pyplot as plt
-from spared.metrics import get_metrics
-from spared.datasets import get_dataset
+# Later change again and use the softlink
+from metrics import get_metrics
 import numpy as np
 import torch
 import squidpy as sq
 import anndata as ad
 from tqdm import tqdm
-import scanpy as sc
 from sklearn.preprocessing import StandardScaler
 import copy
+
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -26,6 +23,7 @@ str2bool = lambda x: (str(x).lower() == 'true')
 str2intlist = lambda x: [int(i) for i in x.split(',')]
 str2floatlist = lambda x: [float(i) for i in x.split(',')]
 str2h_list = lambda x: [str2intlist(i) for i in x.split('//')[1:]]
+
 
 
 def get_main_parser():
@@ -90,6 +88,7 @@ def get_main_parser():
     parser.add_argument('--gene_id',                        type=int,           default=0,                          help='Gene ID to plot.')
     # W&B usage parameters ####################################################################################################################################################################
     parser.add_argument('--debbug_wandb',                     type=str2bool,      default=False,                       help='Select if the experiment is logged in w&b debbug folder. If True, then is for debbuging purposes.')
+    parser.add_argument('--vlo',                             type=str2bool,      default=False,                       help='Select just the vlo dataset, dont use get_dataset function.')
     return parser
 
 
@@ -365,7 +364,7 @@ def build_neighborhood_from_hops(spatial_neighbors, expression_mtx, idx):
     # Get nn indexes for the n_hop required
     nn_index_list = spatial_neighbors[idx] #Obtain the ids of the spots that are neigbors of idx
     #Index the expression matrix (X processed) and obtain the neccesary data
-    #TODO: preguntarle a Daniela
+
     exp_matrix = expression_mtx[nn_index_list].type('torch.FloatTensor')
     return exp_matrix #shape (n_neigbors, n_genes)
 
@@ -471,12 +470,12 @@ def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     min_data = st_data.min()
     
     if args.normalization_type == "0-1":
-        print("normalización 0 a 1")
+        #print("normalización 0 a 1")
         #Normalización 0 a 1 
         st_data = normalize_to_cero_to_one(st_data, max_data, min_data)
         st_data_masked = normalize_to_cero_to_one(st_data_masked, max_data, min_data)*mask
     elif args.normalization_type == "1-1":
-        print("normalización -1 a 1")
+        #print("normalización -1 a 1")
         #Normalización -1 a 1
         st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
         st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
@@ -499,6 +498,3 @@ def get_mask_extreme_completion(adata, mask):
     mask_extreme_completion[imp_values] = 1
     mask_extreme_completion[:,:,1:] = 0
     return mask_extreme_completion
-    
-    
-    
