@@ -157,7 +157,7 @@ def normal_train_stDiff(model,
             
             #Haria falta multiplicar esto por un lambda
             loss_vdb =  term_vdb.mean()
-            lambda_vdl = 1/1000
+            lambda_vdl = args.vlb_lambda_value
             
             loss = loss_mse + lambda_vdl*loss_vdb
             #breakpoint()

@@ -56,7 +56,9 @@ def main():
                "masked_loss": args.masked_loss,
                "model_type": args.model_type,
                "scheduler": args.scheduler,
-               "layer": args.prediction_layer})
+               "layer": args.prediction_layer,
+               "normalizacion": args.normalization_type,
+               "vlb_lambda_value": args.vlb_lambda_value})
     
     ### Parameters
     # Define the training parameters
