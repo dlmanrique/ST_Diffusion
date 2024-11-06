@@ -19,6 +19,6 @@ Comandos para ejecutar el código:
 En este caso se va a ejecutar el código de la tarea completion extremo (A partir de la información genética de los vecinos, buscamos generar el vector de expresión genética del spot central)
 
 ```bash
-cd 
+cd stDiff_Spared
 CUDA_VISIBLE_DEVICES=1 python main_2D.py --debbug_wandb True --vlo True --num_epoch 100 --diffusion_steps 50
 ```
