@@ -3,8 +3,8 @@ stDiff_Spared/Experiments/
 stDiff_Spared/wandb/
 stDiff_Spared/results_visualizations/
 stDiff_Spared/Predictions/
-stDiff_Spared/__pycache__
-stDiff_Spared/model_stDiff/__pycache__
+stDiff_Spared/__pycache__/
+stDiff_Spared/model_stDiff/__pycache__/
 SPaDiT/
 stDiff_Spared/wandb/
 stDiff_Spared/Experiments/
