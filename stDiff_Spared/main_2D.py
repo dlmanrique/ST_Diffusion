@@ -2,15 +2,10 @@ import os
 import warnings
 import torch
 import scanpy as sc
-
-
 from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
-
-
 from utils import *
-
 from visualize_imputation import *
 import wandb
 from datetime import datetime

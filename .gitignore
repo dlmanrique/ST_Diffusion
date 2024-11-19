@@ -9,3 +9,10 @@ SPaDiT/
 stDiff_Spared/wandb/
 stDiff_Spared/Experiments/
 stDiff_Spared/results_visualizations/
+stDiff_Spared/autoencoder_models/
+stDiff_Spared/autoencoder_project/
+stDiff_Spared/lightning_logs/
+stDiff_Spared/taming/
+stDiff_Spared/visualizations_autoencoder/
+stDiff_Spared/wandb/
+stDiff_Spared/src/

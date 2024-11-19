@@ -13,6 +13,7 @@ import anndata as ad
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 import copy
+from spared.datasets import get_dataset
 
 
 warnings.filterwarnings('ignore')
@@ -30,7 +31,7 @@ def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--dataset', type=str, default='villacampa_lung_organoid',  help='Dataset to use.')
-    parser.add_argument('--prediction_layer',  type=str,  default='c_t_deltas', help='The prediction layer from the dataset to use.')
+    parser.add_argument('--prediction_layer',  type=str,  default='c_t_log1p', help='The prediction layer from the dataset to use.')
     parser.add_argument('--save_path',type=str,default='ckpt_W&B/',help='name model save path')
     parser.add_argument('--hex_geometry',                   type=bool,          default=True,                       help='Whether the geometry of the spots in the dataset is hexagonal or not.')
     parser.add_argument('--metrics_path',                   type=str,          default="output/metrics.csv",                       help='Path to the metrics file.')
@@ -38,18 +39,22 @@ def get_main_parser():
     parser.add_argument("--concat_dim",                        type=int,           default=0,                                help='which dimension to concat the condition')
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
-    parser.add_argument("--normalization_type",                        type=str,           default="0-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
+    parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1) or is none')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
-    parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
-    parser.add_argument('--num_epoch', type=int, default=3000, help='Number of training epochs')
+    parser.add_argument('--lr',type=float,default=0.00001,help='lr to use')
+    parser.add_argument('--num_epoch', type=int, default=150, help='Number of training epochs')
     parser.add_argument('--diffusion_steps', type=int, default=1500, help='Number of diffusion steps')
-    parser.add_argument('--batch_size', type=int, default=128, help='The batch size to train model')
+    parser.add_argument('--batch_size', type=int, default=256, help='The batch size to train model')
     parser.add_argument('--optim_metric',                   type=str,           default='MSE',                      help='Metric that should be optimized during training.', choices=['PCC-Gene', 'MSE', 'MAE', 'Global'])
     parser.add_argument('--optimizer',                      type=str,           default='Adam',                     help='Optimizer to use in training. Options available at: https://pytorch.org/docs/stable/optim.html It will just modify main optimizers and not sota (they have fixed optimizers).')
     parser.add_argument('--momentum',                       type=float,         default=0.9,                        help='Momentum to use in the optimizer if it receives this parameter. If not, it is not used. It will just modify main optimizers and not sota (they have fixed optimizers).')
     parser.add_argument('--step_size',                       type=float,         default=600,                         help='Step size to use in learning rate scheduler')
     parser.add_argument("--scheduler",                        type=str2bool,           default=True,                                help='Whether to use LR scheduler or not')
+    # Autoencoder parameters #######################################################################################################################################################################
+    parser.add_argument('--num_res_blocks',                   type=int,          default=2,                       help='Number of resnet blocks')
+    parser.add_argument('--ch',                                type=int,        default=256,                        help='number of hidden dimensions in encoder')
+    parser.add_argument('--ch_mult',                            type=tuple,        default=(1,2,4),                 help='Number of downsamplings')
     # Model parameters ########################################################################################################################################################################
     parser.add_argument('--depth', type=int, default=12, help='' )
     parser.add_argument('--hidden_size', type=int, default=1024, help='Size of latent space')
@@ -498,3 +503,48 @@ def get_mask_extreme_completion(adata, mask):
     mask_extreme_completion[imp_values] = 1
     mask_extreme_completion[:,:,1:] = 0
     return mask_extreme_completion
+
+def append_data(args, list_nn, train_data, val_data, test_data, max_value, min_value):
+    for i, split in enumerate(list_nn):
+        for spots in split:
+            data = spots.permute(1,0).unsqueeze(dim=0)
+            if i == 0:
+                if args.normalization_type == "1-1":
+                    data = normalize_to_minus_one_to_one(data, max_value, min_value)
+                train_data.append(data)
+            elif i == 1:
+                if args.normalization_type == "1-1":
+                    data = normalize_to_minus_one_to_one(data, max_value, min_value)
+                val_data.append(data)
+            elif i == 2:
+                if args.normalization_type == "1-1":
+                    data = normalize_to_minus_one_to_one(data, max_value, min_value)
+                test_data.append(data)
+    
+    return train_data, val_data, test_data
+
+def join_dataset(args, dataset_names, pred_layer):
+    train_data = []
+    val_data = []
+    test_data = []
+    
+    for dataset_name in dataset_names:
+        dataset = get_dataset(dataset_name)
+        adata = dataset.adata  
+        list_nn = get_neigbors_dataset(adata, pred_layer, num_hops=1)
+        concatenated_array = np.concatenate([np.array(sublist) for sublist in list_nn])
+        max_value = np.max(concatenated_array)
+        min_value = np.min(concatenated_array)
+    
+        train_data, val_data, test_data = append_data(args=args,
+                                                      list_nn=list_nn, 
+                                                      train_data=train_data, 
+                                                      val_data=val_data, 
+                                                      test_data=test_data,
+                                                      max_value=max_value,
+                                                      min_value=min_value)
+    return train_data, val_data, test_data, max_value, min_value
+        
+
+    
+    
