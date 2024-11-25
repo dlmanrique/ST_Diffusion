@@ -58,7 +58,8 @@ def main():
                "scheduler": args.scheduler,
                "layer": args.prediction_layer,
                "normalizacion": args.normalization_type,
-               "vlb_lambda_value": args.vlb_lambda_value})
+               "vlb_lambda_value": args.vlb_lambda_value, 
+               "batch": args.batch_size})
     
     ### Parameters
     # Define the training parameters
@@ -83,18 +84,20 @@ def main():
 
     # Get neighbors
     neighbors = 7
-    list_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
+    dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
     #list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
-    list_nn_masked = mask_extreme_prediction(list_nn)
+    dict_nn_masked = mask_extreme_prediction(dict_nn)
+    
     ### Define splits
     ## Train
-    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train")
+    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(dict_nn, dict_nn_masked, "train", args)
     ## Validation
-    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val")
+    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(dict_nn, dict_nn_masked, "val", args)
+
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
     ## Test
     if "test" in splits:
-        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test")
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test")
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_test)
     #breakpoint()
     # Definir un tensor de promedio en caso de predecir una capa delta

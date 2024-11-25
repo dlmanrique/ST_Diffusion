@@ -41,7 +41,7 @@ def get_main_parser():
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
     parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
-    parser.add_argument("--vlb_lambda_value",                        type=int,           default=0.001,                                help='Lambda value for the variational lower bound coeficient')
+    parser.add_argument("--vlb_lambda_value",                        type=int,           default=1,                                help='Lambda value for the variational lower bound coeficient')
 
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
@@ -94,6 +94,10 @@ def get_main_parser():
     parser.add_argument('--debbug_wandb',                     type=str2bool,      default=False,                       help='Select if the experiment is logged in w&b debbug folder. If True, then is for debbuging purposes.')
     return parser
 
+def normalize_to_cero_to_one(X, X_max, X_min):
+    # Apply the normalization formula to 0-1
+    X_norm = (X-X_min)/(X_max - X_min)
+    return X_norm
 
 def normalize_to_minus_one_to_one(X, X_max, X_min):
     # Apply the normalization formula
@@ -380,7 +384,6 @@ def build_neighborhood_from_hops(spatial_neighbors, expression_mtx, idx):
     # Get nn indexes for the n_hop required
     nn_index_list = spatial_neighbors[idx] #Obtain the ids of the spots that are neigbors of idx
     #Index the expression matrix (X processed) and obtain the neccesary data
-    #TODO: preguntarle a Daniela
     exp_matrix = expression_mtx[nn_index_list].type('torch.FloatTensor')
     return exp_matrix #shape (n_neigbors, n_genes)
 
@@ -390,11 +393,12 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
     This function recives the name of a dataset and pred_layer. Returns a list of len = number of spots, each position of the list is an array 
     (n_neigbors + 1, n_genes) that has the information about the neigbors of the corresponding spot.
     """
-    all_neighbors_info = []
+    all_neighbors_info = {}
     #Dataset all info
     dataset = adata
     #get dataset splits
     splits = dataset.obs["split"].unique().tolist()
+    
     #iterate over split adata
     for split in splits:
         split_neighbors_info = []
@@ -430,11 +434,11 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
             split_neighbors_info.append(slide_neighbors_info)
             """
         #append split neighbors info into the complete list
-        all_neighbors_info.append(split_neighbors_info)
+        all_neighbors_info[split] = split_neighbors_info
 
-    return all_neighbors_info  
+    return all_neighbors_info 
   
-def define_split_nn_mat(list_nn, list_nn_masked, split):
+def define_split_nn_mat(dict_nn, dict_nn_masked, split, args):
     
     """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
     the st_data, st_masked_data and mask, where bothe the center spot and its neighbors are masked and used for completion.
@@ -450,16 +454,9 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     """
     
     # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
+    list_nn = dict_nn[split]
+    list_nn_masked = dict_nn_masked[split]
+
     #Convertir la lista de tensores en un solo tensor tridimensional
     tensor_stack_nn = torch.stack(list_nn)
     st_data = tensor_stack_nn
@@ -482,13 +479,22 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     mask = mask.numpy()
     
     # Normalización
-    #max_data = st_data.max()
-    #st_data = st_data/max_data
-    #st_data_masked = st_data_masked/max_data
     max_data = st_data.max()
     min_data = st_data.min()
-    st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
-    st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    
+    if args.normalization_type == "0-1":
+        #print("normalización 0 a 1")
+        #Normalización 0 a 1 
+        st_data = normalize_to_cero_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_cero_to_one(st_data_masked, max_data, min_data)*mask
+    elif args.normalization_type == "1-1":
+        #print("normalización -1 a 1")
+        #Normalización -1 a 1
+        st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    else:
+        raise ValueError("Error: La entrada de la normalización no es válida")
+    
     
     return st_data, st_data_masked, mask, max_data, min_data
 
