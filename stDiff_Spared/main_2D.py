@@ -85,19 +85,20 @@ def main():
 
     # Get neighbors
     neighbors = 7
-    list_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
+    dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
     #list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
-    list_nn_masked = mask_extreme_prediction(list_nn)
+    dict_nn_masked = mask_extreme_prediction(dict_nn)
     
     ### Define splits
     ## Train
-    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
+    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(dict_nn, dict_nn_masked, "train", args)
     ## Validation
-    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
+    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(dict_nn, dict_nn_masked, "val", args)
+
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
     ## Test
     if "test" in splits:
-        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test", args)
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_test)
     #breakpoint()
     # Definir un tensor de promedio en caso de predecir una capa delta
@@ -192,7 +193,7 @@ def main():
 
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
-        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+        #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
         log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})

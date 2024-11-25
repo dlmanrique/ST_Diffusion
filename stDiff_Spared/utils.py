@@ -30,7 +30,7 @@ def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--dataset', type=str, default='villacampa_lung_organoid',  help='Dataset to use.')
-    parser.add_argument('--prediction_layer',  type=str,  default='c_t_deltas', help='The prediction layer from the dataset to use.')
+    parser.add_argument('--prediction_layer',  type=str,  default='c_t_log1p', help='The prediction layer from the dataset to use.')
     parser.add_argument('--save_path',type=str,default='ckpt_W&B/',help='name model save path')
     parser.add_argument('--hex_geometry',                   type=bool,          default=True,                       help='Whether the geometry of the spots in the dataset is hexagonal or not.')
     parser.add_argument('--metrics_path',                   type=str,          default="output/metrics.csv",                       help='Path to the metrics file.')
@@ -38,7 +38,7 @@ def get_main_parser():
     parser.add_argument("--concat_dim",                        type=int,           default=0,                                help='which dimension to concat the condition')
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
-    parser.add_argument("--normalization_type",                        type=str,           default="0-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
+    parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
@@ -374,11 +374,12 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
     This function recives the name of a dataset and pred_layer. Returns a list of len = number of spots, each position of the list is an array 
     (n_neigbors + 1, n_genes) that has the information about the neigbors of the corresponding spot.
     """
-    all_neighbors_info = []
+    all_neighbors_info = {}
     #Dataset all info
     dataset = adata
     #get dataset splits
     splits = dataset.obs["split"].unique().tolist()
+    
     #iterate over split adata
     for split in splits:
         split_neighbors_info = []
@@ -414,11 +415,11 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
             split_neighbors_info.append(slide_neighbors_info)
             """
         #append split neighbors info into the complete list
-        all_neighbors_info.append(split_neighbors_info)
+        all_neighbors_info[split] = split_neighbors_info
 
     return all_neighbors_info  
   
-def define_split_nn_mat(list_nn, list_nn_masked, split, args):
+def define_split_nn_mat(dict_nn, dict_nn_masked, split, args):
     
     """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
     the st_data, st_masked_data and mask, where bothe the center spot and its neighbors are masked and used for completion.
@@ -434,16 +435,9 @@ def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     """
     
     # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
+    list_nn = dict_nn[split]
+    list_nn_masked = dict_nn_masked[split]
+
     #Convertir la lista de tensores en un solo tensor tridimensional
     tensor_stack_nn = torch.stack(list_nn)
     st_data = tensor_stack_nn
@@ -485,12 +479,16 @@ def define_split_nn_mat(list_nn, list_nn_masked, split, args):
     
     return st_data, st_data_masked, mask, max_data, min_data
 
-def mask_extreme_prediction(list_nn):
-    list_nn_masked = copy.deepcopy(list_nn)
-    for i in range(len(list_nn_masked)):
-        for j in range(len(list_nn_masked[i])):
-            list_nn_masked[i][j][0][:] = 0
-    return list_nn_masked
+def mask_extreme_prediction(dict_nn):
+    dict_nn_masked = {}
+    
+    for split in dict_nn.keys():
+        list_nn = dict_nn[split]
+        list_nn_masked = copy.deepcopy(list_nn)
+        for i in range(len(list_nn_masked)):
+            list_nn_masked[i][0][:] = 0
+        dict_nn_masked[split] = list_nn_masked
+    return dict_nn_masked
     
 def get_mask_extreme_completion(adata, mask):
     mask_extreme_completion = copy.deepcopy(mask)

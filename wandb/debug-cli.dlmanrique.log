@@ -1,0 +1,9 @@
+2024-11-21 15:52:30 INFO Running runs: []
+2024-11-21 15:52:30 INFO Agent received command: run
+2024-11-21 15:52:30 INFO Agent starting run with config:
+	dataset: mirzazadeh_human_small_intestine
+	depth: 12
+	head: 16
+	lr: 0.0001
+	scheduler: True
+2024-11-21 15:52:30 INFO About to run command: /usr/bin/env python main_2D.py --dataset=mirzazadeh_human_small_intestine --depth=12 --head=16 --lr=0.0001 --scheduler=True
