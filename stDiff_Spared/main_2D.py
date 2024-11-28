@@ -97,7 +97,7 @@ def main():
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
     ## Test
     if "test" in splits:
-        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test")
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test", args)
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_test)
     #breakpoint()
     # Definir un tensor de promedio en caso de predecir una capa delta
@@ -200,8 +200,8 @@ def main():
         adata_test.layers["diff_pred"] = imputation_data
         
         Path("Predictions").mkdir(parents=True, exist_ok=True)    
-        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
-        log_pred_image_extreme_completion(adata_test, args, -1)
+        #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+        #log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
         #print(test_metrics)

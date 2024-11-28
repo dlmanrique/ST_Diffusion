@@ -498,12 +498,16 @@ def define_split_nn_mat(dict_nn, dict_nn_masked, split, args):
     
     return st_data, st_data_masked, mask, max_data, min_data
 
-def mask_extreme_prediction(list_nn):
-    list_nn_masked = copy.deepcopy(list_nn)
-    for i in range(len(list_nn_masked)):
-        for j in range(len(list_nn_masked[i])):
-            list_nn_masked[i][j][0][:] = 0
-    return list_nn_masked
+def mask_extreme_prediction(dict_nn):
+    dict_nn_masked = {}
+    
+    for split in dict_nn.keys():
+        list_nn = dict_nn[split]
+        list_nn_masked = copy.deepcopy(list_nn)
+        for i in range(len(list_nn_masked)):
+            list_nn_masked[i][0][:] = 0
+        dict_nn_masked[split] = list_nn_masked
+    return dict_nn_masked
     
 def get_mask_extreme_completion(adata, mask):
     mask_extreme_completion = copy.deepcopy(mask)
