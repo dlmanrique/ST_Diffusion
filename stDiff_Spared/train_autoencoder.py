@@ -65,11 +65,13 @@ model = Autoencoder(num_res_blocks=args.num_res_blocks,
 # Initialize the Trainer
 trainer = pl.Trainer(
     max_epochs=args.num_epoch,
-    logger = wandb_logger
+    logger = wandb_logger,
+    enable_checkpointing=False
 )
 
 # Run the training loop
 trainer.fit(model, train_loader, val_loader)
+
 
 # Save the trained model
 if not os.path.exists(os.path.join("autoencoder_models", exp_name)):
@@ -86,6 +88,7 @@ model = Autoencoder(num_res_blocks=args.num_res_blocks,
 checkpoint_path = os.path.join("autoencoder_models", exp_name, "autoencoder_model.ckpt")
 checkpoint = torch.load(checkpoint_path)
 model.load_state_dict(checkpoint['state_dict'])
+
 
 # Test the model
 trainer.test(model, test_loader)
@@ -104,7 +107,8 @@ with torch.no_grad():
         auto_pred.append(outputs.cpu().numpy())
 
 auto_pred = np.concatenate(auto_pred, axis=0)
-adata_test = adata[adata.obs["split"] == "test"]
+split = adata.obs["split"].unique().tolist()[-1]
+adata_test = adata[adata.obs["split"] == split]
 
 auto_data = []
 for spot in range(0, auto_pred.shape[0]):

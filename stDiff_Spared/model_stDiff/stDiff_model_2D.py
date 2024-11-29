@@ -268,7 +268,7 @@ class DiT_stDiff(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         if args.concat_dim == 1:
-            self.project_size = hidden_size*3 #concat by feature dim
+            self.project_size = hidden_size*2 #concat by feature dim
         else:
             self.project_size = hidden_size
         self.depth = depth
@@ -342,16 +342,20 @@ class DiT_stDiff(nn.Module):
         nn.init.constant_(self.out_layer.linear.bias, 0)
 
     def forward(self, x, t, y,**kwargs): 
-        x = x.float()
+        x = x.float().squeeze(dim=1)
         x = self.in_layer(x)
         t = self.time_emb(t)
         #y = self.cond_layer(y)
-        cond = self.cond_layer(y[0])
-        mask = self.cond_layer(y[1])
+        cond = y[0].float().squeeze(dim=1)
+        cond = self.cond_layer(cond)
+        
+        mask = y[1].float().squeeze(dim=1)
+        #mask = self.cond_layer(mask)
         
         if self.args.concat_dim == 1:
-            x = torch.cat((x, cond, mask), dim=self.args.concat_dim)
-            t = t.unsqueeze(2).repeat(1, 3, 7)
+            x = torch.cat((x, cond), dim=self.args.concat_dim)
+            t = t.unsqueeze(2).repeat(1, 2, 3)
+            #c = t + cond
             c = t
             
         elif self.args.concat_dim == 2: 
@@ -360,7 +364,8 @@ class DiT_stDiff(nn.Module):
             c = t
         #No se realiza concatenacion
         elif self.args.concat_dim == 0:
-            t = t.unsqueeze(2).repeat(1, 1, 7)
+            #t = t.unsqueeze(2).repeat(1, 1, 7)
+            t = t.unsqueeze(2).repeat(1, 1, 3)
             c = t + cond
         
         # Permute so that the data can pass through ViT

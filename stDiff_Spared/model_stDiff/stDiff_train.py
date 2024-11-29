@@ -27,6 +27,7 @@ torch.cuda.manual_seed_all(seed)
 
 
 def normal_train_stDiff(model,
+                 model_autoencoder,
                  train_dataloader,
                  valid_dataloader,
                  valid_data,
@@ -94,7 +95,13 @@ def normal_train_stDiff(model,
             #The mask is a binary array, the 1's are the masked data (0 in the values we want to predict)
             #En LDM es alreves entonces si algo tocaría voltearlo
             x, x_cond = x.float().to(device), x_cond.float().to(device)
-
+            #x = x.unsqueeze(dim=1)
+            #x_cond = x_cond.unsqueeze(dim=1)
+            
+            #Encoder
+            #x = model_autoencoder.encoder(x)
+            #x_cond = model_autoencoder.encoder(x_cond)
+            
             noise = torch.randn(x.shape).to(device)
             #torch.rand_like
             # noise.shape: torch.Size([2048, 33])
@@ -140,11 +147,11 @@ def normal_train_stDiff(model,
             mask_boolean = mask_boolean[:,:,0]  
             #noise = noise*max_norm[0] 
             #pred = pred*max_norm[0] 
-            pred = pred[:,:,0] 
+            #pred = pred[:,:,0] 
             #pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
             
             if args.loss_type == "noise":
-                noise = noise[:,:,0]
+                #noise = noise[:,:,0]
                 #noise = denormalize_from_minus_one_to_one(noise, min_norm[0], max_norm[0])
                 if args.masked_loss:
                     #calculamos loss solo sobre los datos masqueados
@@ -206,11 +213,11 @@ def normal_train_stDiff(model,
                                         avg_tensor = avg_tensor,
                                         diffusion_step=diffusion_step,
                                         device=device,
-                                        args=args
-                                        )
+                                        args=args,
+                                        model_autoencoder=model_autoencoder)
             
             adata_valid.layers["diff_pred"] = imputation_data
-            log_pred_image_extreme_completion(adata_valid, args, epoch)
+            #log_pred_image_extreme_completion(adata_valid, args, epoch)
 
             if metrics_dict["MSE"] < min_mse:
                 min_mse = metrics_dict["MSE"]

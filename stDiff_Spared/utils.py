@@ -42,8 +42,8 @@ def get_main_parser():
     parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1) or is none')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
-    parser.add_argument('--lr',type=float,default=0.00001,help='lr to use')
-    parser.add_argument('--num_epoch', type=int, default=150, help='Number of training epochs')
+    parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
+    parser.add_argument('--num_epoch', type=int, default=3000, help='Number of training epochs')
     parser.add_argument('--diffusion_steps', type=int, default=1500, help='Number of diffusion steps')
     parser.add_argument('--batch_size', type=int, default=256, help='The batch size to train model')
     parser.add_argument('--optim_metric',                   type=str,           default='MSE',                      help='Metric that should be optimized during training.', choices=['PCC-Gene', 'MSE', 'MAE', 'Global'])
@@ -52,9 +52,9 @@ def get_main_parser():
     parser.add_argument('--step_size',                       type=float,         default=600,                         help='Step size to use in learning rate scheduler')
     parser.add_argument("--scheduler",                        type=str2bool,           default=True,                                help='Whether to use LR scheduler or not')
     # Autoencoder parameters #######################################################################################################################################################################
-    parser.add_argument('--num_res_blocks',                   type=int,          default=2,                       help='Number of resnet blocks')
-    parser.add_argument('--ch',                                type=int,        default=256,                        help='number of hidden dimensions in encoder')
-    parser.add_argument('--ch_mult',                            type=tuple,        default=(1,2,4),                 help='Number of downsamplings')
+    parser.add_argument('--num_res_blocks',                   type=int,          default=8,                       help='Number of resnet blocks')
+    parser.add_argument('--ch',                                type=int,        default=512,                        help='number of hidden dimensions in encoder')
+    parser.add_argument('--ch_mult',                            type=tuple,        default=(1,2),                 help='Number of downsamplings')
     # Model parameters ########################################################################################################################################################################
     parser.add_argument('--depth', type=int, default=12, help='' )
     parser.add_argument('--hidden_size', type=int, default=1024, help='Size of latent space')
@@ -231,7 +231,63 @@ def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.
 
     return adata
 
-def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_completion, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
+def decode(batch_size, chunk_size, imputation, model_autoencoder):
+    imputation = torch.tensor(imputation).unsqueeze(dim=1)
+    # Initialize a placeholder for the output
+    output = []
+
+    # Process in smaller chunks
+    for i in range(0, batch_size, chunk_size):
+        # Extract a chunk of the tensor
+        imputation_chunk = imputation[i:i + chunk_size]
+        
+        # Pass the chunk through the decoder
+        with torch.no_grad():
+            decoded_chunk = model_autoencoder.decoder(imputation_chunk)
+        
+        # Append the result
+        output.append(decoded_chunk)
+
+    # Concatenate all chunks to form the final output tensor
+    imputation_decoded = torch.cat(output, dim=0)
+    return imputation_decoded
+
+from torch.utils.data import DataLoader, TensorDataset
+
+# Function to encode data and return a DataLoader
+def encode_data_and_create_dataloader(data_loader, model_autoencoder, device, batch_size, is_shuffle):
+    encoded_data = []
+    encoded_masked_data = []
+    original_masks = []
+    # Iterate through the DataLoader
+    for data, masked_data, mask in tqdm(data_loader):
+        # Move data to the correct device (GPU/CPU)
+        data = data.to(device).unsqueeze(dim=1)
+        masked_data = masked_data.to(device).unsqueeze(dim=1)
+
+        # Pass data and masked_data through the encoder
+        with torch.no_grad():  # Disable gradient computation
+            encoded = model_autoencoder.encoder(data)
+            encoded_masked = model_autoencoder.encoder(masked_data)
+        
+        # Append encoded data, encoded masked_data, and original mask
+        encoded_data.append(encoded.cpu())
+        encoded_masked_data.append(encoded_masked.cpu())
+        original_masks.append(mask.cpu())  # Keep masks as they are
+
+    # Concatenate encoded data, encoded masked data, and masks
+    encoded_data = torch.cat(encoded_data)
+    encoded_masked_data = torch.cat(encoded_masked_data)
+    original_masks = torch.cat(original_masks)
+    # Create a new DataLoader with the required elements
+    encoded_dataset = TensorDataset(encoded_data, encoded_masked_data, original_masks)
+    generator = torch.Generator(device='cuda')
+    encoded_dataloader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=is_shuffle, generator=generator)
+
+    return encoded_dataloader
+
+
+def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_completion, max_norm, min_norm, avg_tensor, diffusion_step, device, args, model_autoencoder):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
     from model_stDiff.sample import sample_stDiff
@@ -262,6 +318,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     
     # inference using test split
     imputation = sample_stDiff(model,
+                        model_autoencoder,
                         dataloader=dataloader,
                         noise_scheduler=noise_scheduler,
                         args=args,
@@ -274,8 +331,10 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
                         sample_intermediate=diffusion_step,
                         is_classifier_guidance=False,
                         omega=0.2)
-
+    
+    imputation = decode(batch_size=gt.shape[0], chunk_size=64, imputation=imputation, model_autoencoder=model_autoencoder)
     #mask_boolean = (1-mask).astype(bool) #for partial completion
+    imputation = imputation.squeeze(dim=1).cpu()
     mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
     
     #Evaluate only on spot central
@@ -309,8 +368,35 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     
     return metrics_dict, imputation
 
+
+def build_neighborhood_from_distance(adata, pred_layer, num_neighs = 6):
+    """
+    This function gets the closest n neighbors of the spot in index idx and returns the final neighborhood gene expression matrix,
+    as well as the mask that indicates which elements are missing in the original data. If the datasets has already been randomly 
+    masked, it will also return the corresponding matrix.
+    """
+    sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=num_neighs)
+    adj_mat = torch.tensor(adata.obsp['spatial_connectivities'].todense())
+    expression_mtx = torch.tensor(adata.layers[pred_layer])
+    
+    # Define neighbors dict
+    neighbors_dict_index = {}
+    # Iterate through the rows of the output matrix
+    for idx in range(expression_mtx.shape[0]):
+        # Get gt expression for idx spot and its nn
+        row_indices = adj_mat[:, idx].nonzero()
+        spot_exp = expression_mtx[idx].unsqueeze(dim=0)
+        nn_exp = expression_mtx[adj_mat[:,idx]==1.]
+        exp_matrix = torch.cat((spot_exp, nn_exp), dim=0).type('torch.FloatTensor') # Original dtype was 'torch.float64'
+
+        # Add the neighbors to the neighbors dicts. NOTE: the first index is the query obs
+        neighbors_dict_index[idx] = exp_matrix
+
+    return neighbors_dict_index
+
         
-def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:
+def get_spatial_neighbors(adata: ad.AnnData, num_neighs: int, hex_geometry: bool) -> dict:
+    import copy
     """
     This function computes a neighbors dictionary for an AnnData object. The neighbors are computed according to topological distances over
     a graph defined by the hex_geometry connectivity. The neighbors dictionary is a dictionary where the keys are the indexes of the observations
@@ -326,29 +412,27 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     Returns:
         dict: The neighbors dictionary. The keys are the indexes of the observations and the values are lists of the indexes of the neighbors of each observation.
     """
-    
     # Compute spatial_neighbors
     if hex_geometry:
-        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=6) # Hexagonal visium case
+        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=num_neighs) # Hexagonal visium case
+        #sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=17)
         #sc.pp.neighbors(adata, n_neighbors=6, knn=True)
     # Get the adjacency matrix (binary matrix of shape spots x spots)
     adj_matrix = adata.obsp['spatial_connectivities']
     
     # Define power matrix
-    power_matrix = adj_matrix.copy() #(spots x spots)
+    #power_matrix = adj_matrix.copy() #(spots x spots)
+    power_matrix = copy.deepcopy(adj_matrix)
     # Define the output matrix
-    output_matrix = adj_matrix.copy() #(spots x spots)
-
-    # Iterate through the hops
-    for i in range(n_hops-1):
-        # Compute the next hop
-        power_matrix = power_matrix * adj_matrix #Matrix Power Theorem: (i,j) is the he number of (directed or undirected) walks of length n from vertex i to vertex j.
-        # Add the next hop to the output matrix
-        output_matrix = output_matrix + power_matrix #Count the distance of the spots
-
+    #output_matrix = adj_matrix.copy() #(spots x spots)
+    output_matrix = copy.deepcopy(adj_matrix)
+    #output_matrix = np.zeros_like(adj_matrix, dtype=int)
+        
     # Zero out the diagonal
     output_matrix.setdiag(0)  #(spots x spots) Apply 0 diagonal to avoid "auto-paths"
     # Threshold the matrix to 0 and 1
+    #output = output_matrix.astype(int).todense()
+    #breakpoint()
     output_matrix = output_matrix.astype(bool).astype(int)
 
     # Define neighbors dict
@@ -357,10 +441,11 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     for i in range(output_matrix.shape[0]):
         # Get the non-zero elements of the row (non zero means a neighbour)
         non_zero_elements = output_matrix[:,i].nonzero()[0]
+        #non_zero_elements = output_matrix[i].nonzero()[1]
         # Add the neighbors to the neighbors dicts. NOTE: the first index is the query obs
         #Key: int number (id of each spot) -> Value: list of spots ids
         neighbors_dict_index[i] = [i] + list(non_zero_elements)
-    
+
     # Return the neighbors dict
     return neighbors_dict_index
 
@@ -373,7 +458,7 @@ def build_neighborhood_from_hops(spatial_neighbors, expression_mtx, idx):
     exp_matrix = expression_mtx[nn_index_list].type('torch.FloatTensor')
     return exp_matrix #shape (n_neigbors, n_genes)
 
-
+#[0, 6, 11, 85, 186, 223, 249]
 def get_neigbors_dataset(adata, prediction_layer, num_hops):
     """
     This function recives the name of a dataset and pred_layer. Returns a list of len = number of spots, each position of the list is an array 

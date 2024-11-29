@@ -14,11 +14,11 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
-def model_sample_stDiff(model, device, dataloader, total_sample, time, is_condi, condi_flag):
+def model_sample_stDiff(model, model_autoencoder, device, dataloader, total_sample, time, is_condi, condi_flag):
     noise = []
     i = 0
     for x, x_cond, mask in dataloader: 
-        x_cond = x_cond.float().to(device) 
+        x_cond = x_cond.float().to(device)
         mask = mask.to(device)
         t = torch.from_numpy(np.repeat(time, x_cond.shape[0])).long().to(device)
         # celltype = celltype.to(device)
@@ -33,6 +33,7 @@ def model_sample_stDiff(model, device, dataloader, total_sample, time, is_condi,
     return noise
 
 def sample_stDiff(model,
+                model_autoencoder,
                 dataloader,
                 noise_scheduler,
                 args,
@@ -68,6 +69,9 @@ def sample_stDiff(model,
         _type_: recon_x
     """
     model.eval()
+    #gt = torch.tensor(gt).to(device)
+    #gt = model_autoencoder.encoder(gt)
+    sample_shape = (sample_shape[0], 64, 3)
     x_t = torch.randn(sample_shape).to(device)
     # BoDiffusion
     #x_t = x_t.unsqueeze(2)
@@ -75,10 +79,9 @@ def sample_stDiff(model,
     mask = torch.tensor(mask).to(device)
     #BoDiffusion
     #mask = mask.unsqueeze(2)
-    gt = torch.tensor(gt).to(device)
     #BoDiffusion
     #gt = gt.unsqueeze(2)
-    x_t =  x_t * (1 - mask) + gt * mask
+    #x_t =  x_t * (1 - mask) + gt * mask
     #agregando ruido en lo que no esta maskeado y le sumo el GT (multiplicado por la mascara)
     
     if sample_intermediate:
@@ -90,6 +93,7 @@ def sample_stDiff(model,
         with torch.no_grad():
             #model_output (spots, genes): retorna un tensor con las predicciones de los genes maskeados y cero en el resto (en lo no maskeado)
             model_output = model_sample_stDiff(model,
+                                        model_autoencoder=model_autoencoder,
                                         device=device,
                                         dataloader=dataloader,
                                         total_sample=x_t,  # x_t
@@ -98,6 +102,7 @@ def sample_stDiff(model,
                                         condi_flag=True)
             if is_classifier_guidance:
                 model_output_uncondi = model_sample_stDiff(model,
+                                                    model_autoencoder=model_autoencoder,
                                                     device=device,
                                                     dataloader=dataloader,
                                                     total_sample=sample,
@@ -117,8 +122,8 @@ def sample_stDiff(model,
                                             x_t,
                                             model_pred_type=args.loss_type)
         
-        if mask is not None:
-            x_t = x_t * (1. - mask) + mask * gt  
+        #if mask is not None:
+        #    x_t = x_t * (1. - mask) + mask * gt  
 
         #cambio
         if time == 0 and args.loss_type == "x_start":

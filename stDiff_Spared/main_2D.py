@@ -9,6 +9,9 @@ from utils import *
 from visualize_imputation import *
 import wandb
 from datetime import datetime
+from encoder import Encoder
+from decoder import Decoder
+from autoencoder_mse import Autoencoder
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -81,6 +84,9 @@ def main():
     # Get neighbors
     neighbors = 7
     list_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
+    train_adata = adata[adata.obs["split"]=="train"]
+    list_nn_2 = build_neighborhood_from_distance(train_adata, pred_layer)
+    breakpoint()
     #list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
     list_nn_masked = mask_extreme_prediction(list_nn)
     
@@ -126,10 +132,11 @@ def main():
         mask_test, 
         batch_size=batch_size, 
         is_shuffle=False)
+        
 
     ### DIFFUSION MODEL ##########################################################################
-    num_nn = st_data_train[0].shape
-
+    #num_nn = st_data_train[0].shape
+    num_nn = (64,3)
     # Define the model
     model = DiT_stDiff(
         input_size=num_nn,  
@@ -144,11 +151,38 @@ def main():
     model.to(device)
     save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
 
+    model_autoencoder = Autoencoder(num_res_blocks=args.num_res_blocks,
+                    ch=args.ch,
+                    ch_mult=args.ch_mult,
+                    lr=args.lr)
+
+    checkpoint_path = os.path.join("autoencoder_models", "2024-11-21-11-13-27", "autoencoder_model.ckpt")
+    checkpoint = torch.load(checkpoint_path)
+    model_autoencoder.load_state_dict(checkpoint['state_dict'])
+    model_autoencoder.to(device)
+    
+    # Encode training data
+    train_dataloader = encode_data_and_create_dataloader(
+        train_dataloader, model_autoencoder, device="cuda", batch_size=args.batch_size, is_shuffle=True
+    )
+
+    # Encode validation data
+    valid_dataloader = encode_data_and_create_dataloader(
+        valid_dataloader, model_autoencoder, device="cuda", batch_size=args.batch_size, is_shuffle=False
+    )
+
+    # Encode test data (if it exists)
+    if 'test' in splits:
+        test_dataloader = encode_data_and_create_dataloader(
+            test_dataloader, model_autoencoder, device="cuda", batch_size=args.batch_size, is_shuffle=False
+    )
+    
  ### Train the model
     model.train()
     if not os.path.isfile(save_path_prefix):
         adata_valid = adata[adata.obs["split"]=="val"]
         normal_train_stDiff(model,
+                                model_autoencoder,
                                 train_dataloader=train_dataloader,
                                 valid_dataloader=valid_dataloader,
                                 valid_data = st_data_valid,
@@ -183,12 +217,13 @@ def main():
                                     model=model,
                                     diffusion_step=diffusion_step,
                                     device=device,
-                                    args=args)
+                                    args=args,
+                                    model_autoencoder=model_autoencoder)
 
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
         torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
-        log_pred_image_extreme_completion(adata_test, args, -1)
+        #log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
         #print(test_metrics)
