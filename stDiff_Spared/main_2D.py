@@ -57,7 +57,8 @@ def main():
                "scheduler": args.scheduler,
                "layer": args.prediction_layer,
                "normalizacion": args.normalization_type,
-               "batch_size": args.batch_size})
+               "batch_size": args.batch_size,
+               "num_hops": args.num_hops})
     
     ### Parameters
     # Define the training parameters

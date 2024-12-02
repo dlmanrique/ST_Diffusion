@@ -305,7 +305,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     return metrics_dict, imputation
 
         
-def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:
+def get_spatial_neighbors(adata: ad.AnnData, num_neighs: int, hex_geometry: bool) -> dict:
     """
     This function computes a neighbors dictionary for an AnnData object. The neighbors are computed according to topological distances over
     a graph defined by the hex_geometry connectivity. The neighbors dictionary is a dictionary where the keys are the indexes of the observations
@@ -324,7 +324,7 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     
     # Compute spatial_neighbors
     if hex_geometry:
-        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=6) # Hexagonal visium case
+        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=num_neighs) # Hexagonal visium case
         #sc.pp.neighbors(adata, n_neighbors=6, knn=True)
     # Get the adjacency matrix (binary matrix of shape spots x spots)
     adj_matrix = adata.obsp['spatial_connectivities']
@@ -333,13 +333,6 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     power_matrix = adj_matrix.copy() #(spots x spots)
     # Define the output matrix
     output_matrix = adj_matrix.copy() #(spots x spots)
-
-    # Iterate through the hops
-    for i in range(n_hops-1):
-        # Compute the next hop
-        power_matrix = power_matrix * adj_matrix #Matrix Power Theorem: (i,j) is the he number of (directed or undirected) walks of length n from vertex i to vertex j.
-        # Add the next hop to the output matrix
-        output_matrix = output_matrix + power_matrix #Count the distance of the spots
 
     # Zero out the diagonal
     output_matrix.setdiag(0)  #(spots x spots) Apply 0 diagonal to avoid "auto-paths"
@@ -379,7 +372,10 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
     dataset = adata
     #get dataset splits
     splits = dataset.obs["split"].unique().tolist()
-    
+    #get num neighs
+    num_neighs = 0
+    for hop in range(1, num_hops+1):
+        num_neighs += 6*hop
     #iterate over split adata
     for split in splits:
         split_neighbors_info = []
@@ -388,7 +384,7 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
         #slides = adata.obs["slide_id"].unique().tolist()
         #iterate over slides and get the neighbors info for every slide
         #Get dict with all the neigbors info for each spot in the dataset
-        spatial_neighbors = get_spatial_neighbors(adata, n_hops=num_hops, hex_geometry=True)
+        spatial_neighbors = get_spatial_neighbors(adata, num_neighs=num_neighs, hex_geometry=True)
         #Expression matrix (already applied post-processing)
         expression_mtx = torch.tensor(adata.layers[prediction_layer]) 
         for idx in tqdm(spatial_neighbors.keys()):

@@ -343,6 +343,8 @@ class DiT_stDiff(nn.Module):
 
     def forward(self, x, t, y,**kwargs): 
         x = x.float()
+        num_neighs = x.shape[2]
+
         x = self.in_layer(x)
         t = self.time_emb(t)
         #y = self.cond_layer(y)
@@ -351,16 +353,16 @@ class DiT_stDiff(nn.Module):
         
         if self.args.concat_dim == 1:
             x = torch.cat((x, cond, mask), dim=self.args.concat_dim)
-            t = t.unsqueeze(2).repeat(1, 3, 7)
+            t = t.unsqueeze(2).repeat(1, 3, num_neighs)
             c = t
             
         elif self.args.concat_dim == 2: 
             x = torch.cat((x, cond, mask), dim=self.args.concat_dim)
-            t = t.unsqueeze(2).repeat(1, 1, 21)
+            t = t.unsqueeze(2).repeat(1, 1, num_neighs*3)
             c = t
-        #No se realiza concatenacion
+        #No se realiza 
         elif self.args.concat_dim == 0:
-            t = t.unsqueeze(2).repeat(1, 1, 7)
+            t = t.unsqueeze(2).repeat(1, 1, num_neighs)
             c = t + cond
         
         # Permute so that the data can pass through ViT
