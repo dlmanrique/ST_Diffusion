@@ -97,7 +97,7 @@ def main():
     ## Validation
     st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(dict_nn, dict_nn_masked, "val", args)
 
-    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
+    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid) # 1 en las posiciones donde maskeo
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test", args)
@@ -195,7 +195,7 @@ def main():
 
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
-        #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_extremo.pt'))
         log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})

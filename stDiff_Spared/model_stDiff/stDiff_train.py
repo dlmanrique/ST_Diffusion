@@ -94,7 +94,7 @@ def normal_train_stDiff(model,
             #The mask is a binary array, the 1's are the masked data (0 in the values we want to predict)
             #En LDM es alreves entonces si algo tocaría voltearlo
             x, x_cond = x.float().to(device), x_cond.float().to(device)
-
+            #breakpoint()
             noise = torch.randn(x.shape).to(device)
             #torch.rand_like
             # noise.shape: torch.Size([2048, 33])

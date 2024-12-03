@@ -290,6 +290,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     else:
         raise ValueError("Error: La entrada de la normalización no es válida")
     
+
     
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
