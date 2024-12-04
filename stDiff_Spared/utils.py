@@ -32,7 +32,7 @@ def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--dataset', type=str, default='villacampa_lung_organoid',  help='Dataset to use.')
-    parser.add_argument('--prediction_layer',  type=str,  default='c_t_log1p', help='The prediction layer from the dataset to use.')
+    parser.add_argument('--prediction_layer',  type=str,  default='c_t_deltas', help='The prediction layer from the dataset to use.')
     parser.add_argument('--save_path',type=str,default='ckpt_W&B/',help='name model save path')
     parser.add_argument('--hex_geometry',                   type=bool,          default=True,                       help='Whether the geometry of the spots in the dataset is hexagonal or not.')
     parser.add_argument('--metrics_path',                   type=str,          default="output/metrics.csv",                       help='Path to the metrics file.')
