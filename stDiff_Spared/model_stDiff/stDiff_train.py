@@ -169,7 +169,7 @@ def normal_train_stDiff(model,
                 else:    
                     loss = criterion(x_t_1, pred)
             
-            #breakpoint()
+
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore
             optimizer.step()

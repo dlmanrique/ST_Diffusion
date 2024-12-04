@@ -1,5 +1,3 @@
-import numpy as np
-import pandas as pd
 import os
 import warnings
 import torch
@@ -12,12 +10,6 @@ from spared.datasets import get_dataset
 
 from utils import *
 
-from spared_imputation.model import GeneImputationModel
-from spared_imputation.predictions import get_predictions
-from spared_imputation.utils import apply_median_imputation_method
-from spared_imputation.utils import prepare_preds_for_visuals
-
-from visualize_imputation import log_pred_image
 import wandb
 from datetime import datetime
 
@@ -36,7 +28,6 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
 def main():
-    breakpoint()
     ### Wandb 
     wandb.login()
     if args.debbug_wandb:
@@ -45,7 +36,7 @@ def main():
 
     else:
         exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
+        wandb.init(project="stDiff_Modelo_2D_partial", entity="spared_v2", name=exp_name )
         
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
@@ -57,7 +48,12 @@ def main():
                "concat_dim": args.concat_dim,
                "masked_loss": args.masked_loss,
                "model_type": args.model_type,
-               "scheduler": args.scheduler})
+               "scheduler": args.scheduler,
+               "layer": args.prediction_layer,
+               "normalizacion": args.normalization_type,
+               "batch_size": args.batch_size,
+               "num_hops": args.num_hops, 
+               "partial": True})
     
     ### Parameters
     # Define the training parameters
@@ -75,6 +71,7 @@ def main():
     adata = dataset.adata
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
+    
     # Masking
     prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
     # Add neccesary masking layers in the adata object
@@ -82,22 +79,23 @@ def main():
 
     # Get neighbors
     neighbors = 7
-    list_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
-    list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
+    dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
+    dict_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
     ### Define splits
     ## Train
-    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train")
+    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(dict_nn, dict_nn_masked, "train", args)
     ## Validation
-    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val")
+    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(dict_nn, dict_nn_masked, "val", args)
 
     ## Test
     if "test" in splits:
-        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test")
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test", args)
 
     # Definir un tensor de promedio en caso de predecir una capa delta
     num_genes = adata.shape[1]
     if "deltas" in pred_layer:
-        avg_tensor = torch.tensor(adata.var["c_d_log1p_avg_exp"]).view(1, num_genes)
+        format = args.prediction_layer.split("deltas")[0]
+        avg_tensor = torch.tensor(adata.var[f"{format}log1p_avg_exp"]).view(1, num_genes)
     else:
         avg_tensor = None
     
@@ -189,37 +187,13 @@ def main():
                                     args=args)
 
         adata_test = adata[adata.obs["split"]=="test"]
+        adata_test.layers["diff_pred"] = imputation_data
+        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_parcial.pt'))
+        #log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
         #print(test_metrics)
-    """
-    else: 
-        model.load_state_dict(torch.load(save_path_prefix))
-        valid_metrics, imputation_data = inference_function(dataloader=valid_dataloader, 
-                                    data=st_data_valid, 
-                                    masked_data=st_data_masked_valid, 
-                                    mask=mask_valid,
-                                    max_norm = max_valid,
-                                    model=model,
-                                    diffusion_step=diffusion_step,
-                                    device=device)
 
-        #adata_test = adata[adata.obs["split"]=="test"]
-        # FIXME: (siguiente linea comentada por ahora) 
-        # ValueError: Value passed for key 'diff_pred' is of incorrect shape. Values of layers must match dimensions (0, 1) of parent. Value had shape (439, 128) while it should have had (533, 128).
-        #adata_test.layers["diff_pred"] = imputation_data.T
-        #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
-        wandb.log({"valid_MSE": valid_metrics["MSE"], "valid_PCC": valid_metrics["PCC-Gene"]})
-        #print(test_metrics)
-    """ 
      
 if __name__=='__main__':
     main()
-
-# VISUALIZATION
-"""
-log_pred_image(adata=adata_test,
-               args=args,  
-               slide = "",
-               gene_id=args.gene_id)
-"""

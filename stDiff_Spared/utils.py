@@ -32,7 +32,7 @@ def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--dataset', type=str, default='villacampa_lung_organoid',  help='Dataset to use.')
-    parser.add_argument('--prediction_layer',  type=str,  default='c_d_log1p', help='The prediction layer from the dataset to use.')
+    parser.add_argument('--prediction_layer',  type=str,  default='c_t_log1p', help='The prediction layer from the dataset to use.')
     parser.add_argument('--save_path',type=str,default='ckpt_W&B/',help='name model save path')
     parser.add_argument('--hex_geometry',                   type=bool,          default=True,                       help='Whether the geometry of the spots in the dataset is hexagonal or not.')
     parser.add_argument('--metrics_path',                   type=str,          default="output/metrics.csv",                       help='Path to the metrics file.')
@@ -40,6 +40,7 @@ def get_main_parser():
     parser.add_argument("--concat_dim",                        type=int,           default=0,                                help='which dimension to concat the condition')
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
+    parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
@@ -92,13 +93,23 @@ def get_main_parser():
     return parser
 
 
+def normalize_to_cero_to_one(X, X_max, X_min):
+    # Apply the normalization formula to 0-1
+    X_norm = (X-X_min)/(X_max - X_min)
+    return X_norm
+
+def denormalize_from_cero_to_one(X_norm, X_max, X_min):
+    # Apply the denormalization formula 
+    X_denorm = (X_norm*(X_max - X_min)) + X_min
+    return X_denorm    
+    
 def normalize_to_minus_one_to_one(X, X_max, X_min):
-    # Apply the normalization formula
+    # Apply the normalization formula to -1-1
     X_norm = 2 * (X - X_min) / (X_max - X_min) - 1
     return X_norm
 
-def denormalize_from_minus_one_to_one(X_norm, X_min, X_max):
-    # Apply the denormalization formula
+def denormalize_from_minus_one_to_one(X_norm, X_max, X_min):
+    # Apply the denormalization formula 
     X_denorm = ((X_norm + 1) / 2) * (X_max - X_min) + X_min
     return X_denorm
 
@@ -259,20 +270,26 @@ def inference_function(dataloader, data, masked_data, model, mask, max_norm, min
                         sample_intermediate=diffusion_step,
                         is_classifier_guidance=False,
                         omega=0.2)
+  
+    
+    mask_boolean = (1-mask).astype(bool) #for partial completion
+    #mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
+    
+    #Evaluate only on spot central
+    mask_boolean = mask_boolean[:,:,0]
+    data = data[:,:,0]
+    imputation = imputation[:,:,0]
 
-    if len(mask.shape) > 2:  
-        mask = mask[:,:,0] 
-        data = data[:,:,0]
-        imputation = imputation[:,:,0]
-    
-    mask_boolean = (1-mask).astype(bool)
-    
-    #data = data*max_norm
-    #imputation = imputation*max_norm
-    data = denormalize_from_minus_one_to_one(data, min_norm, max_norm)
-    imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
-    #BoDiffusion
-    #imputation = imputation.squeeze(2)
+    if args.normalization_type == "0-1":
+        #Normalización 0 a 1 
+        data = denormalize_from_cero_to_one(data, max_norm, min_norm)
+        imputation = denormalize_from_cero_to_one(imputation, max_norm, min_norm)
+    elif args.normalization_type == "1-1":
+        #Normalización -1 a 1
+        data = denormalize_from_minus_one_to_one(data, max_norm, min_norm)
+        imputation = denormalize_from_minus_one_to_one(imputation, max_norm, min_norm)
+    else:
+        raise ValueError("Error: La entrada de la normalización no es válida")
     
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
@@ -287,40 +304,9 @@ def inference_function(dataloader, data, masked_data, model, mask, max_norm, min
     
     return metrics_dict, imputation
 
-def define_splits(dataset, split:str, pred_layer:str):
-    """
-    Function that extract the desired split from the dataset and then prepare neccesary data for 
-    the dataloader.
-    Args:
-        -dataset (dataset SpaRED class): class that has the adata.
-        -split (str): desired split to obtain
-    Returns:
-        - st_data: spatial data
-        - st_data_masked: masked spatial data
-        - mask: mask used for calculations
-    """
-    ## Define the adata split
-    adata = dataset[dataset.obs["split"]==split]
-    
-    # Define data
-    st_data = adata.layers[pred_layer]
-    # Define masked data
-    st_data_masked = adata.layers["masked_expression_matrix"]
-    # Define mask
-    mask = adata.layers["random_mask"]
-    mask = (1-mask)
-    # En la mascara los valores masqueados son 0 y los valores reales deben ser 1
-    
-    # Normalize data
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-
-    #st used just for train
-    return st_data, st_data_masked, mask, max_data
 
         
-def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:
+def get_spatial_neighbors(adata: ad.AnnData, num_neighs: int, hex_geometry: bool) -> dict:
     """
     This function computes a neighbors dictionary for an AnnData object. The neighbors are computed according to topological distances over
     a graph defined by the hex_geometry connectivity. The neighbors dictionary is a dictionary where the keys are the indexes of the observations
@@ -339,8 +325,8 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     
     # Compute spatial_neighbors
     if hex_geometry:
-        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=6) # Hexagonal visium case
-        #sc.pp.neighbors(adata, n_neighbors=6, knn=True)
+        sq.gr.spatial_neighbors(adata, coord_type='generic', n_neighs=num_neighs) # Hexagonal visium case
+        
     # Get the adjacency matrix (binary matrix of shape spots x spots)
     adj_matrix = adata.obsp['spatial_connectivities']
     
@@ -348,13 +334,6 @@ def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) ->
     power_matrix = adj_matrix.copy() #(spots x spots)
     # Define the output matrix
     output_matrix = adj_matrix.copy() #(spots x spots)
-
-    # Iterate through the hops
-    for i in range(n_hops-1):
-        # Compute the next hop
-        power_matrix = power_matrix * adj_matrix #Matrix Power Theorem: (i,j) is the he number of (directed or undirected) walks of length n from vertex i to vertex j.
-        # Add the next hop to the output matrix
-        output_matrix = output_matrix + power_matrix #Count the distance of the spots
 
     # Zero out the diagonal
     output_matrix.setdiag(0)  #(spots x spots) Apply 0 diagonal to avoid "auto-paths"
@@ -379,7 +358,7 @@ def build_neighborhood_from_hops(spatial_neighbors, expression_mtx, idx):
     # Get nn indexes for the n_hop required
     nn_index_list = spatial_neighbors[idx] #Obtain the ids of the spots that are neigbors of idx
     #Index the expression matrix (X processed) and obtain the neccesary data
-    #TODO: preguntarle a Daniela
+
     exp_matrix = expression_mtx[nn_index_list].type('torch.FloatTensor')
     return exp_matrix #shape (n_neigbors, n_genes)
 
@@ -389,11 +368,15 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
     This function recives the name of a dataset and pred_layer. Returns a list of len = number of spots, each position of the list is an array 
     (n_neigbors + 1, n_genes) that has the information about the neigbors of the corresponding spot.
     """
-    all_neighbors_info = []
+    all_neighbors_info = {}
     #Dataset all info
     dataset = adata
     #get dataset splits
     splits = dataset.obs["split"].unique().tolist()
+    #get num neighs
+    num_neighs = 0
+    for hop in range(1, num_hops+1):
+        num_neighs += 6*hop
     #iterate over split adata
     for split in splits:
         split_neighbors_info = []
@@ -402,7 +385,7 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
         #slides = adata.obs["slide_id"].unique().tolist()
         #iterate over slides and get the neighbors info for every slide
         #Get dict with all the neigbors info for each spot in the dataset
-        spatial_neighbors = get_spatial_neighbors(adata, n_hops=num_hops, hex_geometry=True)
+        spatial_neighbors = get_spatial_neighbors(adata, num_neighs=num_neighs, hex_geometry=True)
         #Expression matrix (already applied post-processing)
         expression_mtx = torch.tensor(adata.layers[prediction_layer]) 
         for idx in tqdm(spatial_neighbors.keys()):
@@ -429,67 +412,13 @@ def get_neigbors_dataset(adata, prediction_layer, num_hops):
             split_neighbors_info.append(slide_neighbors_info)
             """
         #append split neighbors info into the complete list
-        all_neighbors_info.append(split_neighbors_info)
+        all_neighbors_info[split] = split_neighbors_info
 
-    return all_neighbors_info
+    return all_neighbors_info  
 
-def define_split_nn(list_nn, list_nn_masked, split):
-    
-    """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
-    the st_data, st_masked_data and mask, where both the center spot and its neighbors are masked and used for completion.
-    The data is returned as a list of vectors of length (num_genes * num_neighbors) 
-
-    Args:
-        list_nn (_type_): list of all spots and 6 neighbors
-        list_nn_masked (_type_): lista of all spots and 6 neighbors masked
-        split (_type_): train, valid or test split
-
-    Returns:
-        tuple: contaning the st_data, the masked st_data, the mask and the max value used for normalization 
-    """
-    # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn = torch.stack(list_nn)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data = tensor_stack_nn.reshape(tensor_stack_nn.size(0), -1)
-    #shape(spot, 128*7) --> list_nn
-    
-    #Convertir la lista de tensores en un solo tensor tridimensional
-    tensor_stack_nn_masked = torch.stack(list_nn_masked)
-    # Reshape el tensor tridimensional al tamaño deseado
-    st_data_masked = tensor_stack_nn_masked.reshape(tensor_stack_nn_masked.size(0), -1)
-    #shape(spot, 128*7) --> list_nn_masked
-    mask = st_data_masked!=0
-    mask = mask.int()
-    #num_genes = int(mask.shape[1]/7)
-    #mask[:, num_genes:] = 1
-    
-    #Convertir a numpy array
-    st_data = st_data.numpy()
-    st_data_masked = st_data_masked.numpy()
-    mask = mask.numpy()
-    
-    # Normalización
-    max_data = st_data.max()
-    st_data = st_data/max_data
-    st_data_masked = st_data_masked/max_data
-    
-    return st_data, st_data_masked, mask, max_data
-
-
-    return st_data, st_data_masked, mask, max_data    
   
-def define_split_nn_mat(list_nn, list_nn_masked, split):
+  
+def define_split_nn_mat(dict_nn, dict_nn_masked, split, args):
     
     """This function receives a list of all the spots and corresponding neighbors, both masked and unmasked and returns
     the st_data, st_masked_data and mask, where bothe the center spot and its neighbors are masked and used for completion.
@@ -505,16 +434,9 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     """
     
     # Definir lista segun el split
-    if split == "train":
-        list_nn = list_nn[0]
-        list_nn_masked = list_nn_masked[0]
-    elif split == "val":
-        list_nn = list_nn[1]
-        list_nn_masked = list_nn_masked[1]
-    elif split == "test":
-        list_nn = list_nn[2]
-        list_nn_masked = list_nn_masked[2]
-    
+    list_nn = dict_nn[split]
+    list_nn_masked = dict_nn_masked[split]
+
     #Convertir la lista de tensores en un solo tensor tridimensional
     tensor_stack_nn = torch.stack(list_nn)
     st_data = tensor_stack_nn
@@ -537,16 +459,21 @@ def define_split_nn_mat(list_nn, list_nn_masked, split):
     mask = mask.numpy()
     
     # Normalización
-    #max_data = st_data.max()
-    #st_data = st_data/max_data
-    #st_data_masked = st_data_masked/max_data
     max_data = st_data.max()
     min_data = st_data.min()
-    st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
-    st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    
+    if args.normalization_type == "0-1":
+        #print("normalización 0 a 1")
+        #Normalización 0 a 1 
+        st_data = normalize_to_cero_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_cero_to_one(st_data_masked, max_data, min_data)*mask
+    elif args.normalization_type == "1-1":
+        #print("normalización -1 a 1")
+        #Normalización -1 a 1
+        st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
+        st_data_masked = normalize_to_minus_one_to_one(st_data_masked, max_data, min_data)*mask
+    else:
+        raise ValueError("Error: La entrada de la normalización no es válida")
+    
     
     return st_data, st_data_masked, mask, max_data, min_data
-
-    
-    
-    
