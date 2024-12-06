@@ -67,6 +67,7 @@ def sample_stDiff(model,
     Returns:
         _type_: recon_x
     """
+    #breakpoint()
     model.eval()
     x_t = torch.randn(sample_shape).to(device)
     # BoDiffusion
@@ -123,7 +124,7 @@ def sample_stDiff(model,
         #cambio
         if time == 0 and args.loss_type == "x_start":
             sample = model_output
-    
+
     recon_x = x_t.detach().cpu().numpy()
     return recon_x
 

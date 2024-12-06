@@ -87,10 +87,11 @@ def normal_train_stDiff(model,
     loss_visualization = []
     #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
-    
+
     for epoch in t_epoch:
         epoch_loss = 0.
         for i, (x, x_cond, mask) in enumerate(train_dataloader): 
+            #breakpoint()
             #The mask is a binary array, the 1's are the masked data (0 in the values we want to predict)
             #En LDM es alreves entonces si algo tocaría voltearlo
             x, x_cond = x.float().to(device), x_cond.float().to(device)
@@ -121,27 +122,10 @@ def normal_train_stDiff(model,
             cond = [x_cond, mask]
             
             pred = model(x_noisy, t=timesteps.to(device), y=cond) 
-            #pred = model(x_noisy, t=timesteps.to(device), y=x_cond) 
-            # noise_pred.shape: torch.Size([2048, 33])
-            
-            # loss = criterion(noise_pred, noise)
-            #max_train = torch.tensor(max_norm[0]).to(device)
-            #loss = criterion((noise*(1-mask))*max_train, (noise_pred*(1-mask))*max_train)
-            #loss = criterion(noise*(1-mask), noise_pred*(1-mask))
-            """
-            x_previous, x_start = noise_scheduler.step(pred,  # noise
-                                         timesteps.detach().cpu(),
-                                         x_t,
-                                         model_pred_type=pred_type)
-                 
-            """
-                
+
             mask_boolean = (1-mask).bool() #1 = False y 0 = True
             mask_boolean = mask_boolean[:,:,0]  
-            #noise = noise*max_norm[0] 
-            #pred = pred*max_norm[0] 
             pred = pred[:,:,0] 
-            #pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
             
             if args.loss_type == "noise":
                 noise = noise[:,:,0]
@@ -195,6 +179,7 @@ def normal_train_stDiff(model,
         
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
+            #breakpoint()
             metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader, 
                                         data=valid_data, 
                                         masked_data=valid_masked_data, 
@@ -208,7 +193,7 @@ def normal_train_stDiff(model,
                                         device=device,
                                         args=args
                                         )
-            
+            #breakpoint()
             adata_valid.layers["diff_pred"] = imputation_data
             log_pred_image_extreme_completion(adata_valid, args, epoch)
 

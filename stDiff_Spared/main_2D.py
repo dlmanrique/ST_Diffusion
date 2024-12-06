@@ -87,9 +87,9 @@ def main():
     # Get neighbors
     neighbors = 7
     dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
-    #list_nn_masked = get_neigbors_dataset(adata, 'masked_expression_matrix', args.num_hops)
     dict_nn_masked = mask_extreme_prediction(dict_nn)
     
+
     ### Define splits
     ## Train
     st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(dict_nn, dict_nn_masked, "train", args)
@@ -195,7 +195,7 @@ def main():
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
         #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
-        log_pred_image_extreme_completion(adata_test, args, -1)
+        #log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
         #print(test_metrics)

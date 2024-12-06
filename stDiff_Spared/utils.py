@@ -245,6 +245,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     Returns:
         -metrics_dict (dict): dictionary with all the metrics
     """
+    #breakpoint()
     # Sample model using test set
     #gt = masked_data
     #BoDiffusion
@@ -269,7 +270,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
                         sample_intermediate=diffusion_step,
                         is_classifier_guidance=False,
                         omega=0.2)
-
+    
     #mask_boolean = (1-mask).astype(bool) #for partial completion
     mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
     

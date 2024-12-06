@@ -88,14 +88,14 @@ class NoiseScheduler():
         
         x0 = s1 * x_t - s2 * noise
         if args.normalization_type == "0-1":
-            torch.clamp(x0, min=0, max=1)
+            x0 = torch.clamp(x0, min=0, max=1)
             
         elif args.normalization_type == "1-1":
-            torch.clamp(x0, min=-1, max=1)
+            x0 = torch.clamp(x0, min=-1, max=1)
             
         else:
             raise ValueError("Error: La entrada de la normalización no es válida")
-           
+
         return x0
     
 
