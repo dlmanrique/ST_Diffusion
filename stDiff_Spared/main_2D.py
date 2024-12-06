@@ -200,9 +200,8 @@ def main():
         adata_test.layers["diff_pred"] = imputation_data
         
         Path("Predictions").mkdir(parents=True, exist_ok=True)    
-        #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
-        #log_pred_image_extreme_completion(adata_test, args, -1)
-        #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
+        torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+        log_pred_image_extreme_completion(adata_test, args, -1)
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
         #print(test_metrics)
      
