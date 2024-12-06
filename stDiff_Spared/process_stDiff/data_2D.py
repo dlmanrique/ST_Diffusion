@@ -65,7 +65,7 @@ def plot_hvg_umap(hvg_adata,color=['celltype'],path = None, save_filename=None):
 def get_data_loader(data_ary:np.ndarray, 
                     cell_type:np.ndarray, 
                     mask_array:np.ndarray,
-                    batch_size:int=512,
+                    batch_size:int,
                     is_shuffle:bool=True,
                     ):
         data_tensor = torch.from_numpy(data_ary.astype(np.float32))

@@ -57,7 +57,8 @@ def main():
                "scheduler": args.scheduler,
                "layer": args.prediction_layer,
                "normalizacion": args.normalization_type,
-               "batch_size": args.batch_size})
+               "batch_size": args.batch_size,
+               "num_hops": args.num_hops})
     
     ### Parameters
     # Define the training parameters
@@ -96,7 +97,7 @@ def main():
     ## Validation
     st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(dict_nn, dict_nn_masked, "val", args)
 
-    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid)
+    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_valid) # 1 en las posiciones donde maskeo
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(dict_nn, dict_nn_masked, "test", args)
