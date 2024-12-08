@@ -58,14 +58,16 @@ def main():
                "layer": args.prediction_layer,
                "normalizacion": args.normalization_type,
                "batch_size": args.batch_size,
-               "num_hops": args.num_hops})
+               "num_hops": args.num_hops,
+               'scheduler_fixed': True,
+               "diffusion_steps_train": args.diffusion_steps_train, 
+               "diffusion_steps_test": args.diffusion_steps_test})
     
     ### Parameters
     # Define the training parameters
     lr = args.lr
     depth = args.depth
     num_epoch = args.num_epoch
-    diffusion_step = args.diffusion_steps
     batch_size = args.batch_size
     hidden_size = args.hidden_size
     head = args.head
@@ -171,7 +173,6 @@ def main():
                                 adata_valid=adata_valid,
                                 lr=lr,
                                 num_epoch=num_epoch,
-                                diffusion_step=diffusion_step,
                                 device=device,
                                 save_path=save_path_prefix,
                                 exp_name=exp_name)
@@ -189,7 +190,7 @@ def main():
                                     min_norm = min_test,
                                     avg_tensor = avg_tensor,
                                     model=model,
-                                    diffusion_step=diffusion_step,
+                                    diffusion_step=args.diffusion_steps_test,
                                     device=device,
                                     args=args)
 

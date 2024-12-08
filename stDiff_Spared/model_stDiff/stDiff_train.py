@@ -7,7 +7,6 @@ from ray.air import session
 import os
 from .stDiff_scheduler import NoiseScheduler
 from utils import *
-import matplotlib.pyplot as plt
 import wandb
 import datetime 
 from spared.metrics import get_metrics
@@ -41,7 +40,6 @@ def normal_train_stDiff(model,
                  adata_valid,
                  lr: float = 1e-4,
                  num_epoch: int = 1400,
-                 diffusion_step: int = 1000,
                  device=torch.device('cuda'),
                  is_tqdm: bool = True,
                  is_tune: bool = False,
@@ -63,7 +61,7 @@ def normal_train_stDiff(model,
         NotImplementedError: _description_
     """
     noise_scheduler = NoiseScheduler(
-        num_timesteps=diffusion_step,
+        num_timesteps=args.diffusion_steps_train,
         beta_schedule='cosine'
     )
 
@@ -100,7 +98,7 @@ def normal_train_stDiff(model,
             #torch.rand_like
             # noise.shape: torch.Size([2048, 33])
             
-            timesteps = torch.randint(1, diffusion_step, (x.shape[0],)).long()
+            timesteps = torch.randint(1, args.diffusion_steps_train, (x.shape[0],)).long()
             # timesteps.shape: torch.Size([2048])
             x_t = noise_scheduler.add_noise(x,
                                             noise,
@@ -189,7 +187,7 @@ def normal_train_stDiff(model,
                                         max_norm = max_norm[1],
                                         min_norm = min_norm[1],
                                         avg_tensor = avg_tensor,
-                                        diffusion_step=diffusion_step,
+                                        diffusion_step=args.diffusion_steps_test,
                                         device=device,
                                         args=args
                                         )
