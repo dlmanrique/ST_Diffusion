@@ -1,2 +1,10 @@
-CUDA_VISIBLE_DEVICES=7 python main_2D.py --dataset villacampa_lung_organoid --lr 0.00005 --depth 8 --head 16 --hidden_size 1024 --batch_size 128 --prediction_layer c_d_log1p --loss_type noise --concat_dim 0 --masked_loss True
-CUDA_VISIBLE_DEVICES=7 python main_2D.py --dataset villacampa_lung_organoid --lr 0.00005 --depth 8 --head 16 --hidden_size 1024 --batch_size 128 --prediction_layer c_d_log1p --loss_type noise --concat_dim 0 --masked_loss False
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-03-14-55-38/villacampa_lung_organoid_12_1024_0.0001_noise.pt'
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-20-46-07/villacampa_mouse_brain_12_1024_0.0001_noise.pt'
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-19-35-56/abalo_human_squamous_cell_carcinoma_12_1024_0.0001_noise.pt'
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-09-23-05/mirzazadeh_mouse_bone_12_1024_0.0001_noise.pt'
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-09-02-30/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt'
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-03-14-55-38/villacampa_lung_organoid_12_1024_0.0001_noise.pt' --diffusion_steps 50
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-20-46-07/villacampa_mouse_brain_12_1024_0.0001_noise.pt' --diffusion_steps 50
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-19-35-56/abalo_human_squamous_cell_carcinoma_12_1024_0.0001_noise.pt' --diffusion_steps 50
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-09-23-05/mirzazadeh_mouse_bone_12_1024_0.0001_noise.pt' --diffusion_steps 50
+CUDA_VISIBLE_DEVICES=4 python inference_extreme_models.py --load_path 'Experiments/2024-12-09-09-02-30/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt' --diffusion_steps 50

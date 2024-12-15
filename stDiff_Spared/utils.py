@@ -90,6 +90,7 @@ def get_main_parser():
     parser.add_argument('--gene_id',                        type=int,           default=0,                          help='Gene ID to plot.')
     # W&B usage parameters ####################################################################################################################################################################
     parser.add_argument('--debbug_wandb',                     type=str2bool,      default=False,                       help='Select if the experiment is logged in w&b debbug folder. If True, then is for debbuging purposes.')
+    parser.add_argument('--load_path',                        type=str,           default='',                         help='Path to the extreme completion model that is used to make inference in partial completion.')
     return parser
 
 

@@ -40,11 +40,16 @@ else:
 
 # FIXME: change this to an option that not involves comments in the code
 
-#load_path = 'Experiments/2024-12-03-14-56-59/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt'
-load_path = 'Experiments/2024-12-03-14-55-38/villacampa_lung_organoid_12_1024_0.0001_noise.pt'
 
 
-args.dataset =  load_path.split('_12')[0].split('/')[-1]
+#load_path = 'Experiments/2024-12-09-20-46-07/villacampa_mouse_brain_12_1024_0.0001_noise.pt'
+#load_path = 'Experiments/2024-12-09-19-35-56/abalo_human_squamous_cell_carcinoma_12_1024_0.0001_noise.pt'
+#load_path = 'Experiments/2024-12-09-09-23-05/mirzazadeh_mouse_bone_12_1024_0.0001_noise.pt'
+#load_path = 'Experiments/2024-12-09-09-02-30/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt'
+#load_path = 'Experiments/2024-12-03-14-55-38/villacampa_lung_organoid_12_1024_0.0001_noise.pt'
+
+
+args.dataset =  args.load_path.split('_12')[0].split('/')[-1]
 
 wandb.config = {"lr": args.lr, "dataset": args.dataset}
 wandb.log({"lr": args.lr, 
@@ -53,7 +58,7 @@ wandb.log({"lr": args.lr,
             "num_heads": args.head,
             "depth": args.depth,
             "hidden_size": args.hidden_size, 
-            "load_path": load_path,
+            "load_path": args.load_path,
             "loss_type": args.loss_type,
             "concat_dim": args.concat_dim,
             "masked_loss": args.masked_loss,
@@ -63,7 +68,8 @@ wandb.log({"lr": args.lr,
             "normalizacion": args.normalization_type,
             "batch_size": args.batch_size,
             "num_hops": args.num_hops, 
-            "partial": True})
+            "partial": True,
+            "diffusion_steps": args.diffusion_steps})
 
 ### Parameters
 # Define the training parameters
@@ -139,7 +145,7 @@ model = DiT_stDiff(
     dit_type='dit')
 
 model.to(device)
-model.load_state_dict(torch.load(load_path))
+model.load_state_dict(torch.load(args.load_path))
 
 if "test" in splits:
     test_metrics, imputation_data = inference_function(dataloader=test_dataloader, 
@@ -156,7 +162,7 @@ if "test" in splits:
 
     adata_test = adata[adata.obs["split"]=="test"]
     adata_test.layers["diff_pred"] = imputation_data
-    torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_parcial_inference_extreme.pt'))
+    #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_parcial_inference_extreme.pt'))
     wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
 else:
     valid_metrics, imputation_data = inference_function(dataloader=valid_dataloader, 
@@ -173,5 +179,5 @@ else:
 
     adata_test = adata[adata.obs["split"]=="val"]
     adata_test.layers["diff_pred"] = imputation_data
-    torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_parcial_inference_extreme.pt'))
+    #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}_completion_parcial_inference_extreme.pt'))
     wandb.log({"val_MSE": valid_metrics["MSE"], "val_PCC": valid_metrics["PCC-Gene"]})
