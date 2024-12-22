@@ -62,7 +62,7 @@ def normal_train_stDiff(model,
     """
     noise_scheduler = NoiseScheduler(
         num_timesteps=args.diffusion_steps_train,
-        beta_schedule='cosine'
+        beta_schedule=args.noise_scheduler
     )
 
     #Define Loss function

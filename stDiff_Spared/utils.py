@@ -44,7 +44,7 @@ def get_main_parser():
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
     parser.add_argument('--num_epoch', type=int, default=3000, help='Number of training epochs')
     parser.add_argument('--diffusion_steps_train', type=int, default=1500, help='Number of diffusion steps')
-    parser.add_argument('--diffusion_steps_test', type=int, default=50, help='Number of diffusion steps')
+    parser.add_argument('--diffusion_steps_test', type=int, default=1500, help='Number of diffusion steps')
     parser.add_argument('--batch_size', type=int, default=128, help='The batch size to train model')
     parser.add_argument('--optim_metric',                   type=str,           default='MSE',                      help='Metric that should be optimized during training.', choices=['PCC-Gene', 'MSE', 'MAE', 'Global'])
     parser.add_argument('--optimizer',                      type=str,           default='Adam',                     help='Optimizer to use in training. Options available at: https://pytorch.org/docs/stable/optim.html It will just modify main optimizers and not sota (they have fixed optimizers).')
@@ -55,6 +55,7 @@ def get_main_parser():
     parser.add_argument('--depth', type=int, default=12, help='' )
     parser.add_argument('--hidden_size', type=int, default=1024, help='Size of latent space')
     parser.add_argument('--head', type=int, default=16, help='')
+    parser.add_argument('--noise_scheduler', type=str, default='cosine', help='Scheduler used for adding noise (linear, quadratic or cosine)')
     # Transformer model parameters ############################################################################################################################################################
     parser.add_argument('--base_arch',                      type=str,           default='transformer_encoder',      help='Base architecture chosen for the imputation model.', choices=['transformer_encoder', 'MLP'])
     parser.add_argument('--transformer_dim',                type=int,           default=128,                        help='The number of expected features in the encoder/decoder inputs of the transformer.')
