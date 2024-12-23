@@ -3,7 +3,6 @@ import warnings
 import torch
 
 from model_stDiff.stDiff_model_2D import DiT_stDiff
-from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 import anndata as ad
 from spared.datasets import get_dataset
@@ -41,7 +40,8 @@ else:
 # FIXME: change this to an option that not involves comments in the code
 
 
-
+#load_path = 'Experiments/2024-12-14-22-05-35/vicari_human_striatium_12_1024_0.0001_noise.pt'
+#load_path = 'Experiments/2024-12-14-22-02-56/mirzazadeh_human_small_intestine_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-09-20-46-07/villacampa_mouse_brain_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-09-19-35-56/abalo_human_squamous_cell_carcinoma_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-09-09-23-05/mirzazadeh_mouse_bone_12_1024_0.0001_noise.pt'
@@ -69,14 +69,15 @@ wandb.log({"lr": args.lr,
             "batch_size": args.batch_size,
             "num_hops": args.num_hops, 
             "partial": True,
-            "diffusion_steps": args.diffusion_steps})
+            "diffusion_steps_train": args.diffusion_steps_train, 
+            "diffusion_steps_test": args.diffusion_steps_test})
 
 ### Parameters
 # Define the training parameters
 lr = args.lr
 depth = args.depth
 num_epoch = args.num_epoch
-diffusion_step = args.diffusion_steps
+diffusion_step_test = args.diffusion_steps_test
 batch_size = args.batch_size
 hidden_size = args.hidden_size
 head = args.head
@@ -156,7 +157,7 @@ if "test" in splits:
                                 min_norm = min_test,
                                 avg_tensor = avg_tensor,
                                 model=model,
-                                diffusion_step=diffusion_step,
+                                diffusion_step=diffusion_step_test,
                                 device=device,
                                 args=args)
 
@@ -173,7 +174,7 @@ else:
                                 min_norm = min_valid,
                                 avg_tensor = avg_tensor,
                                 model=model,
-                                diffusion_step=diffusion_step,
+                                diffusion_step=diffusion_step_test,
                                 device=device,
                                 args=args)
 
