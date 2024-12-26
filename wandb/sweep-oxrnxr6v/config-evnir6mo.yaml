@@ -1,0 +1,20 @@
+wandb_version: 1
+
+batch_size:
+  value: 512
+dataset:
+  value: mirzazadeh_mouse_brain
+depth:
+  value: 12
+diffusion_steps_test:
+  value: 50
+diffusion_steps_train:
+  value: 1500
+head:
+  value: 16
+lr:
+  value: 0.0001
+prediction_layer:
+  value: c_t_deltas
+scheduler:
+  value: true

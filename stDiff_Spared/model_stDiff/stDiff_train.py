@@ -187,7 +187,7 @@ def normal_train_stDiff(model,
                                         max_norm = max_norm[1],
                                         min_norm = min_norm[1],
                                         avg_tensor = avg_tensor,
-                                        diffusion_step=args.diffusion_steps_test,
+                                        diffusion_step=args.diffusion_steps_train,
                                         device=device,
                                         args=args
                                         )
