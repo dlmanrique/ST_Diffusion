@@ -40,6 +40,7 @@ else:
 # FIXME: change this to an option that not involves comments in the code
 
 
+# Extreme Models paths
 #load_path = 'Experiments/2024-12-14-22-05-35/vicari_human_striatium_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-14-22-02-56/mirzazadeh_human_small_intestine_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-09-20-46-07/villacampa_mouse_brain_12_1024_0.0001_noise.pt'
@@ -48,6 +49,17 @@ else:
 #load_path = 'Experiments/2024-12-09-09-02-30/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt'
 #load_path = 'Experiments/2024-12-03-14-55-38/villacampa_lung_organoid_12_1024_0.0001_noise.pt'
 
+
+# Partial Models Paths
+# 'Experiments/2024-12-05-14-25-41/mirzazadeh_mouse_brain_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-05-03-57-04/villacampa_mouse_brain_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-04-23-29-18/mirzazadeh_human_small_intestine_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-06-01-11-56/erickson_human_prostate_cancer_p1_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-04-13-00-02/abalo_human_squamous_cell_carcinoma_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-04-12-58-48/mirzazadeh_mouse_bone_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-03-22-29-17/10xgenomic_mouse_brain_sagittal_posterior_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-03-21-24-55/villacampa_lung_organoid_12_1024_0.0001_noise.pt'
+# 'Experiments/2024-12-06-01-15-35/vicari_human_striatium_12_1024_0.0001_noise.pt'
 
 args.dataset =  args.load_path.split('_12')[0].split('/')[-1]
 

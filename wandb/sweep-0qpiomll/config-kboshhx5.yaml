@@ -1,0 +1,18 @@
+wandb_version: 1
+
+batch_size:
+  value: 128
+depth:
+  value: 12
+diffusion_steps_test:
+  value: 50
+head:
+  value: 16
+load_path:
+  value: Experiments/2024-12-05-14-25-41/mirzazadeh_mouse_brain_12_1024_0.0001_noise.pt
+lr:
+  value: 0.0001
+prediction_layer:
+  value: c_t_deltas
+scheduler:
+  value: true
