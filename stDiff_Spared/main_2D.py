@@ -61,7 +61,8 @@ def main():
                "num_hops": args.num_hops,
                'scheduler_fixed': True,
                "diffusion_steps_train": args.diffusion_steps_train, 
-               "diffusion_steps_test": args.diffusion_steps_test})
+               "diffusion_steps_test": args.diffusion_steps_test, 
+               'noise_scheduler': args.noise_scheduler})
     
     ### Parameters
     # Define the training parameters
