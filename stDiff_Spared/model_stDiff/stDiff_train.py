@@ -7,6 +7,7 @@ from ray.air import session
 import os
 from .stDiff_scheduler import NoiseScheduler
 from utils import *
+import matplotlib.pyplot as plt
 import wandb
 import datetime 
 from spared.metrics import get_metrics
@@ -26,26 +27,32 @@ torch.cuda.manual_seed_all(seed)
 
 
 def normal_train_stDiff(model,
-                 train_dataloader,
-                 valid_dataloader,
-                 valid_data,
-                 valid_masked_data,
-                 mask_valid,
-                 mask_extreme_completion,
-                 max_norm,
-                 min_norm, 
-                 avg_tensor,
-                 wandb_logger,
-                 args,
-                 adata_valid,
-                 lr: float = 1e-4,
-                 num_epoch: int = 1400,
-                 device=torch.device('cuda'),
-                 is_tqdm: bool = True,
-                 is_tune: bool = False,
-                 pred_type: str = "noise",
-                 save_path = "ckpt/demo_spared.pt",
-                 exp_name = ""):
+                        adata_train,
+                        train_dataloader,
+                        valid_dataloader,
+                        valid_data,
+                        valid_masked_data,
+                        mask_valid,
+                        mask_extreme_completion_train,
+                        mask_extreme_completion,
+                        max_norm,
+                        min_norm, 
+                        max_enc,
+                        min_enc,
+                        avg_tensor,
+                        wandb_logger,
+                        args,
+                        adata_valid,
+                        model_decoder,
+                        lr: float = 1e-4,
+                        num_epoch: int = 1400,
+                        diffusion_step: int = 1000,
+                        device=torch.device('cuda'),
+                        is_tqdm: bool = True,
+                        is_tune: bool = False,
+                        pred_type: str = "noise",
+                        save_path = "ckpt/demo_spared.pt",
+                        exp_name = ""):
     #mask = None 
     """
 
@@ -60,15 +67,16 @@ def normal_train_stDiff(model,
     Raises:
         NotImplementedError: _description_
     """
+    
     noise_scheduler = NoiseScheduler(
-        num_timesteps=args.diffusion_steps_train,
-        beta_schedule=args.noise_scheduler
+        num_timesteps=diffusion_step,
+        beta_schedule='cosine'
     )
 
     #Define Loss function
     criterion = nn.MSELoss()
     model.to(device)
-
+    
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
     #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20, verbose=True, threshold=1e-4, cooldown=10, min_lr=5e-8)
@@ -98,7 +106,7 @@ def normal_train_stDiff(model,
             #torch.rand_like
             # noise.shape: torch.Size([2048, 33])
             
-            timesteps = torch.randint(1, args.diffusion_steps_train, (x.shape[0],)).long()
+            timesteps = torch.randint(1, diffusion_step, (x.shape[0],)).long()
             # timesteps.shape: torch.Size([2048])
             x_t = noise_scheduler.add_noise(x,
                                             noise,
@@ -120,10 +128,10 @@ def normal_train_stDiff(model,
             cond = [x_cond, mask]
             
             pred = model(x_noisy, t=timesteps.to(device), y=cond) 
-
-            mask_boolean = (1-mask).bool() #1 = False y 0 = True
-            mask_boolean = mask_boolean[:,:,0]  
-            pred = pred[:,:,0] 
+            mask_boolean = (1-mask).bool() #1 = False y 0 = True #DEJAR
+            mask_boolean = mask_boolean[:,:,0]  #DEJAR
+            pred = pred[:,:,0] #DEJAR
+                
             
             if args.loss_type == "noise":
                 noise = noise[:,:,0]
@@ -155,19 +163,18 @@ def normal_train_stDiff(model,
                 else:    
                     loss = criterion(x_t_1, pred)
             
-            #breakpoint()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore
             optimizer.step()
             optimizer.zero_grad()
             epoch_loss += loss.item()
-
+            
         if args.scheduler:
             scheduler.step()  # Update the learning rate
         
         epoch_loss = epoch_loss / (i + 1)  # type: ignore
         wandb_logger.log({"Loss": epoch_loss})
-        #loss_visualization.append(epoch_loss)
+
         if is_tqdm:
             current_lr = scheduler.get_last_lr()[0]# Get the current learning rate
             #current_lr = optimizer.param_groups[0]['lr']
@@ -178,22 +185,29 @@ def normal_train_stDiff(model,
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
             #breakpoint()
-            metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader, 
-                                        data=valid_data, 
-                                        masked_data=valid_masked_data, 
-                                        model=model,
-                                        mask=mask_valid,
-                                        mask_extreme_completion=mask_extreme_completion,
-                                        max_norm = max_norm[1],
-                                        min_norm = min_norm[1],
-                                        avg_tensor = avg_tensor,
-                                        diffusion_step=args.diffusion_steps_train,
-                                        device=device,
-                                        args=args
-                                        )
+            metrics_dict, imputation_data = inference_function(adata=adata_valid,
+                                                                dataloader=valid_dataloader, 
+                                                                data=valid_data, 
+                                                                masked_data=valid_masked_data, 
+                                                                model=model,
+                                                                mask=mask_valid,
+                                                                mask_extreme_completion=mask_extreme_completion,
+                                                                max_norm = max_norm[1],
+                                                                min_norm = min_norm[1],
+                                                                avg_tensor = avg_tensor,
+                                                                diffusion_step=diffusion_step,
+                                                                device=device,
+                                                                args=args,
+                                                                model_decoder=model_decoder,
+                                                                max_enc=max_enc,
+                                                                min_enc=min_enc
+                                                                )
+            
+            #imputation_data = imputation_data.detach().cpu().numpy()
+            #np.save(f"{args.dataset}_{epoch}_imputation_data.npy", imputation_data)
             #breakpoint()
-            adata_valid.layers["diff_pred"] = imputation_data
-            log_pred_image_extreme_completion(adata_valid, args, epoch)
+            #adata_valid.layers["diff_pred"] = imputation_data
+            #log_pred_image_extreme_completion(adata_valid, args, epoch)
 
             if metrics_dict["MSE"] < min_mse:
                 min_mse = metrics_dict["MSE"]
@@ -204,4 +218,6 @@ def normal_train_stDiff(model,
             wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
     # Save the best MSE and best PCC on the validation set
     wandb_logger.log({"best_MSE":best_mse, "best_PCC": best_pcc})
+
+
 
