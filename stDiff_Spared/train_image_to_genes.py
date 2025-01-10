@@ -8,7 +8,6 @@ from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 
-
 from utils import *
 
 from visualize_imputation import *
@@ -34,6 +33,8 @@ if args.vlo == False:
     # Esto molestaba la instalacion con lo de UNI, solo lo quito mientras leo los adata, problema futuro
     #from spared.datasets import get_dataset
     pass
+
+
 
 def main():
     ### Wandb 
@@ -87,16 +88,89 @@ def main():
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
 
-    breakpoint()
-    # Get neighbors
-    if args.neighbors_info:
-        neighbors = 7
-        dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
-
     
+    # Definir un tensor de promedio en caso de predecir una capa delta
+    num_genes = adata.shape[1]
+    if "deltas" in pred_layer:
+        format = args.prediction_layer.split("deltas")[0]
+        avg_tensor = torch.tensor(adata.var[f"{format}log1p_avg_exp"]).view(1, num_genes)
+    else:
+        avg_tensor = None
+    
+    # Split the data into train, val and test
+    # Load patch features data
+    train_adata = adata[adata.obs["split"]=="train"]
+    st_data_train = torch.tensor(train_adata.layers[pred_layer])
+    features_train = torch.load(os.path.join('UNI', args.dataset, 'train.pt'))
+
+    val_adata = adata[adata.obs["split"]=="val"]
+    st_data_val = torch.tensor(val_adata.layers[pred_layer])
+    features_val = torch.load(os.path.join('UNI', args.dataset, 'val.pt'))
+    
+    if len(splits) == 3:
+        test_adata = adata[adata.obs["split"]=="test"]
+        st_data_test = test_adata.layers[pred_layer]
+        features_test = torch.load(os.path.join('UNI', args.dataset, 'test.pt'))
 
 
+    # Get dataloaders
+    # Define train and valid dataloaders
+    train_dataloader = get_data_loader_image_to_gene(
+        st_data_train, # Datos de expresion de la layer que es
+        features_train, # Features de los parches asociados
+        batch_size=batch_size, 
+        is_shuffle=True)
+    
+    val_dataloader = get_data_loader_image_to_gene(
+        st_data_val, # Datos de expresion de la layer que es
+        features_val, # Features de los parches asociados
+        batch_size=batch_size, 
+        is_shuffle=True)
 
+    if len(splits) == 3:
+        test_dataloader = get_data_loader_image_to_gene(
+        st_data_test, # Datos de expresion de la layer que es
+        features_test, # Features de los parches asociados
+        batch_size=batch_size, 
+        is_shuffle=True)
+
+    ### DIFFUSION MODEL ##########################################################################
+    num_nn = st_data_train[0].shape
+
+    # Define the model
+    model = DiT_stDiff(
+        input_size=num_nn,  
+        hidden_size=hidden_size, 
+        depth=depth,
+        num_heads=head,
+        classes=6, 
+        args=args,
+        mlp_ratio=4.0,
+        dit_type='dit')
+    
+    model.to(device)
+    save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
+
+    ### Train the model
+    model.train()
+    if not os.path.isfile(save_path_prefix):
+        normal_train_stDiff(model,
+                            train_dataloader=train_dataloader,
+                            valid_dataloader=val_dataloader,
+                            valid_data = st_data_valid,
+                            max_norm = [max_train, max_valid],
+                            min_norm = [min_train, min_valid],
+                            avg_tensor = avg_tensor,
+                            wandb_logger=wandb,
+                            args=args,
+                            adata_valid=val_adata,
+                            lr=lr,
+                            num_epoch=num_epoch,
+                            device=device,
+                            save_path=save_path_prefix,
+                            exp_name=exp_name)
+    else:
+        model.load_state_dict(torch.load(save_path_prefix))
 
 
 

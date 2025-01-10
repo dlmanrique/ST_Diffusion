@@ -100,4 +100,11 @@ def data_augment(adata: AnnData, fixed: bool, noise_std):
     
     
     return merge_adata
- 
+
+
+
+def get_data_loader_image_to_gene(st_data, patch_features, batch_size:int, is_shuffle:bool=True):
+        dataset = TensorDataset(st_data, patch_features)
+        generator = torch.Generator(device='cuda')
+        return DataLoader(
+                dataset, batch_size=batch_size, shuffle=is_shuffle, drop_last=False , generator=generator) #, generator=torch.Generator(device = 'cuda') 
