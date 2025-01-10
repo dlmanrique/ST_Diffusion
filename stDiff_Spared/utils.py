@@ -39,6 +39,7 @@ def get_main_parser():
     parser.add_argument("--masked_loss",                        type=str2bool,           default=True,                                help='If True the loss if obtained only on masked data, if False the loos is obtained in all data')
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
     parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1)')
+    parser.add_argument("--neighbors_info",                 type=str2bool,         default=True,                    help='use neigbors info for image to text task')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')

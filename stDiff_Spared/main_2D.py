@@ -30,8 +30,10 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
 if args.vlo == False:
-    from spared.datasets import get_dataset
-
+    #TODO: arreglar el tema del env para que esto sirva
+    # Esto molestaba la instalacion con lo de UNI, solo lo quito mientras leo los adata, problema futuro
+    #from spared.datasets import get_dataset
+    pass
 
 def main():
     ### Wandb 
@@ -74,24 +76,26 @@ def main():
     head = args.head
     device = torch.device('cuda')
 
+    
     # Get dataset
     if args.vlo:
         # Carga el archivo .h5ad
         adata = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
     else:
-        dataset = get_dataset(args.dataset)
-        adata = dataset.adata
+        adata = sc.read_h5ad(os.path.join('datasets', args.dataset, 'adata.h5ad'))
+
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
     # Masking
     #prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
     # Add neccesary masking layers in the adata object
     #mask_exp_matrix(adata=adata, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
-
+    breakpoint()
     # Get neighbors
-    neighbors = 7
-    dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
-    dict_nn_masked = mask_extreme_prediction(dict_nn)
+    if args.neighbors_info:
+        neighbors = 7
+        dict_nn = get_neigbors_dataset(adata, pred_layer, args.num_hops)
+        dict_nn_masked = mask_extreme_prediction(dict_nn)
     
 
     ### Define splits
