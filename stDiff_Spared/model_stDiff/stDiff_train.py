@@ -28,10 +28,6 @@ torch.cuda.manual_seed_all(seed)
 def normal_train_stDiff(model,
                  train_dataloader,
                  valid_dataloader,
-                 valid_data,
-                 valid_masked_data,
-                 mask_valid,
-                 mask_extreme_completion,
                  max_norm,
                  min_norm, 
                  avg_tensor,
@@ -82,79 +78,36 @@ def normal_train_stDiff(model,
     min_mse = np.inf
     best_mse = 0
     best_pcc = 0
-    loss_visualization = []
+
     #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
-
+    
     for epoch in t_epoch:
         epoch_loss = 0.
-        for i, (x, x_cond, mask) in enumerate(train_dataloader): 
-            #breakpoint()
-            #The mask is a binary array, the 1's are the masked data (0 in the values we want to predict)
-            #En LDM es alreves entonces si algo tocaría voltearlo
+        for i, (x, x_cond) in enumerate(train_dataloader): 
+            # En este caso x son los vectores de expresion normalizados (-1-1)
+            # x_cond es el vector de features de UNI con shape de 1024
             x, x_cond = x.float().to(device), x_cond.float().to(device)
 
             noise = torch.randn(x.shape).to(device)
-            #torch.rand_like
-            # noise.shape: torch.Size([2048, 33])
+
             
             timesteps = torch.randint(1, args.diffusion_steps_train, (x.shape[0],)).long()
-            # timesteps.shape: torch.Size([2048])
+
             x_t = noise_scheduler.add_noise(x,
                                             noise,
                                             timesteps=timesteps.cpu())
-            # x_t.shape: torch.Size([2048, 33])
-            mask = torch.tensor(mask).to(device)
-            # mask.shape: torch.Size([33])
-            
-            #Entrenamos el modelo para que prediga únicamente los valores masqueados
-            if args.masked_loss:  
-                #Entrenamos el modelo para que prediga solo los datos masqueados
-                x_noisy = x_t * (1 - mask) + x * mask
-            else:
-                #Entrenamos el modelo para que prediga toda la imagen
-                x_noisy = x_t
-            
-            # x_t en los valores masqueados y siempre x original en los valores no masquados
-            # x_noisy.shape: torch.Size([2048, 33])
-            cond = [x_cond, mask]
-            
+
+            # Datos de expresion y les sumo ruido en todas las posiciones
+            x_noisy = x_t
+
+            # Como condicion tengo de input el vector de UNI de shape 1024
+            cond = [x_cond]
+
             pred = model(x_noisy, t=timesteps.to(device), y=cond) 
 
-            mask_boolean = (1-mask).bool() #1 = False y 0 = True
-            mask_boolean = mask_boolean[:,:,0]  
-            pred = pred[:,:,0] 
-            
-            if args.loss_type == "noise":
-                noise = noise[:,:,0]
-                #noise = denormalize_from_minus_one_to_one(noise, min_norm[0], max_norm[0])
-                if args.masked_loss:
-                    #calculamos loss solo sobre los datos masqueados
-                    loss = criterion(noise[mask_boolean], pred[mask_boolean])
-                else:
-                    #calculasmos loss sobre todos los datos
-                    loss = criterion(noise, pred)
-            
-            elif args.loss_type == "x_start":
-                #x = x*max_norm[0] 
-                pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
-                x = x[:,:,0]
-                x = denormalize_from_minus_one_to_one(x, min_norm[0], max_norm[0])
-                if args.masked_loss:
-                    loss = criterion(x[mask_boolean], pred[mask_boolean])
-                else:
-                    loss = criterion(x, pred)
-            
-            elif args.loss_type == "x_previous":
-                pred = denormalize_from_minus_one_to_one(pred, min_norm[0], max_norm[0])
-                x_t_1 = noise_scheduler.q_posterior(x, x_t, timesteps.detach().cpu())
-                x_t_1 = x_t_1[:,:,0]
-                x_t_1 = denormalize_from_minus_one_to_one(x_t_1, min_norm[0], max_norm[0])
-                if args.masked_loss:
-                    loss = criterion(x_t_1[mask_boolean], pred[mask_boolean])
-                else:    
-                    loss = criterion(x_t_1, pred)
-            
+            loss = criterion(noise, pred)
+
             #breakpoint()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore
@@ -177,7 +130,7 @@ def normal_train_stDiff(model,
         
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
-            #breakpoint()
+            breakpoint()
             metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader, 
                                         data=valid_data, 
                                         masked_data=valid_masked_data, 

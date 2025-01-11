@@ -109,26 +109,26 @@ def main():
     
     if len(splits) == 3:
         test_adata = adata[adata.obs["split"]=="test"]
-        st_data_test = test_adata.layers[pred_layer]
+        st_data_test = torch.tensor(test_adata.layers[pred_layer])
         features_test = torch.load(os.path.join('UNI', args.dataset, 'test.pt'))
 
 
     # Get dataloaders
     # Define train and valid dataloaders
-    train_dataloader = get_data_loader_image_to_gene(
+    train_dataloader, max_train, min_train = get_data_loader_image_to_gene(
         st_data_train, # Datos de expresion de la layer que es
         features_train, # Features de los parches asociados
         batch_size=batch_size, 
         is_shuffle=True)
     
-    val_dataloader = get_data_loader_image_to_gene(
+    val_dataloader, max_valid, min_valid = get_data_loader_image_to_gene(
         st_data_val, # Datos de expresion de la layer que es
         features_val, # Features de los parches asociados
         batch_size=batch_size, 
         is_shuffle=True)
 
     if len(splits) == 3:
-        test_dataloader = get_data_loader_image_to_gene(
+        test_dataloader, max_test, min_test = get_data_loader_image_to_gene(
         st_data_test, # Datos de expresion de la layer que es
         features_test, # Features de los parches asociados
         batch_size=batch_size, 
@@ -157,7 +157,6 @@ def main():
         normal_train_stDiff(model,
                             train_dataloader=train_dataloader,
                             valid_dataloader=val_dataloader,
-                            valid_data = st_data_valid,
                             max_norm = [max_train, max_valid],
                             min_norm = [min_train, min_valid],
                             avg_tensor = avg_tensor,

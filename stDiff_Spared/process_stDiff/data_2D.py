@@ -10,7 +10,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from scipy.sparse import issparse, csr
 from anndata import AnnData
 from sklearn.preprocessing import maxabs_scale, MaxAbsScaler
-import pdb
+
 
 CHUNK_SIZE = 20000
 
@@ -103,8 +103,19 @@ def data_augment(adata: AnnData, fixed: bool, noise_std):
 
 
 
+def normalize_to_minus_one_to_one(X, X_max, X_min):
+    # Apply the normalization formula to -1-1
+    X_norm = 2 * (X - X_min) / (X_max - X_min) - 1
+    return X_norm
+
+
 def get_data_loader_image_to_gene(st_data, patch_features, batch_size:int, is_shuffle:bool=True):
-        dataset = TensorDataset(st_data, patch_features)
-        generator = torch.Generator(device='cuda')
-        return DataLoader(
-                dataset, batch_size=batch_size, shuffle=is_shuffle, drop_last=False , generator=generator) #, generator=torch.Generator(device = 'cuda') 
+
+    # Normalización
+    max_data = st_data.max()
+    min_data = st_data.min()
+    st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
+    dataset = TensorDataset(st_data, patch_features)
+    generator = torch.Generator(device='cuda')
+    return [DataLoader(dataset, batch_size=batch_size, shuffle=is_shuffle, drop_last=False , generator=generator),
+            max_data, min_data]
