@@ -115,20 +115,20 @@ def main():
 
     # Get dataloaders
     # Define train and valid dataloaders
-    train_dataloader, max_train, min_train = get_data_loader_image_to_gene(
+    train_dataloader, norm_st_data_train, max_train, min_train = get_data_loader_image_to_gene(
         st_data_train, # Datos de expresion de la layer que es
         features_train, # Features de los parches asociados
         batch_size=batch_size, 
         is_shuffle=True)
     
-    val_dataloader, max_valid, min_valid = get_data_loader_image_to_gene(
+    val_dataloader, norm_st_data_valid, max_valid, min_valid = get_data_loader_image_to_gene(
         st_data_val, # Datos de expresion de la layer que es
         features_val, # Features de los parches asociados
         batch_size=batch_size, 
         is_shuffle=True)
 
     if len(splits) == 3:
-        test_dataloader, max_test, min_test = get_data_loader_image_to_gene(
+        test_dataloader, norm_st_data_test, max_test, min_test = get_data_loader_image_to_gene(
         st_data_test, # Datos de expresion de la layer que es
         features_test, # Features de los parches asociados
         batch_size=batch_size, 
@@ -162,7 +162,8 @@ def main():
                             avg_tensor = avg_tensor,
                             wandb_logger=wandb,
                             args=args,
-                            adata_valid=val_adata,
+                            st_data_val=norm_st_data_valid,
+                            adata_valid = val_adata,
                             lr=lr,
                             num_epoch=num_epoch,
                             device=device,
@@ -171,7 +172,26 @@ def main():
     else:
         model.load_state_dict(torch.load(save_path_prefix))
 
+    if "test" in splits:
+        model.load_state_dict(torch.load(os.path.join("Experiments", exp_name, save_path_prefix)))
+        test_metrics, imputation_data = inference_function(dataloader=test_dataloader,
+                                        data= norm_st_data_test, 
+                                        model=model,
+                                        max_norm = max_test,
+                                        min_norm = min_test,
+                                        avg_tensor = avg_tensor,
+                                        diffusion_step=args.diffusion_steps_train,
+                                        device=device,
+                                        args=args
+                                        )
 
+        adata_test = adata[adata.obs["split"]=="test"]
+        adata_test.layers["diff_pred"] = imputation_data
+        #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+        #log_pred_image_extreme_completion(adata_test, args, -1)
+        #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
+        wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
+        #print(test_metrics)
 
 
 

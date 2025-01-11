@@ -114,8 +114,8 @@ def get_data_loader_image_to_gene(st_data, patch_features, batch_size:int, is_sh
     # Normalización
     max_data = st_data.max()
     min_data = st_data.min()
-    st_data = normalize_to_minus_one_to_one(st_data, max_data, min_data)
+    st_data_norm = normalize_to_minus_one_to_one(st_data, max_data, min_data)
     dataset = TensorDataset(st_data, patch_features)
     generator = torch.Generator(device='cuda')
     return [DataLoader(dataset, batch_size=batch_size, shuffle=is_shuffle, drop_last=False , generator=generator),
-            max_data, min_data]
+            st_data_norm, max_data, min_data]

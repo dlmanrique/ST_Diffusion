@@ -28,7 +28,7 @@ def log_pred_image_extreme_completion(adata: ad.AnnData, args, epoch, slide = ""
     #median_layer = "predictions,c_d_log1p,median"
     #trans_layer = "predictions,c_d_log1p,transformer"
     diff_layer = "diff_pred"
-    gt_layer = "c_t_log1p"
+    gt_layer = "c_t_deltas"
     #mask_layer = "masked_map"
     # Get the selected slides. NOTE: Only first slide is always selected in case slides is not specified by parameter.
     if slide == "":

@@ -33,6 +33,7 @@ def normal_train_stDiff(model,
                  avg_tensor,
                  wandb_logger,
                  args,
+                 st_data_val,
                  adata_valid,
                  lr: float = 1e-4,
                  num_epoch: int = 1400,
@@ -130,13 +131,10 @@ def normal_train_stDiff(model,
         
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
-            breakpoint()
-            metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader, 
-                                        data=valid_data, 
-                                        masked_data=valid_masked_data, 
+            
+            metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader,
+                                        data=st_data_val, 
                                         model=model,
-                                        mask=mask_valid,
-                                        mask_extreme_completion=mask_extreme_completion,
                                         max_norm = max_norm[1],
                                         min_norm = min_norm[1],
                                         avg_tensor = avg_tensor,

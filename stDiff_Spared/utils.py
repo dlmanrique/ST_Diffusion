@@ -229,7 +229,7 @@ def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.
 
     return adata
 
-def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_completion, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
+def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
     from model_stDiff.sample import sample_stDiff
@@ -248,7 +248,7 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     Returns:
         -metrics_dict (dict): dictionary with all the metrics
     """
-    #breakpoint()
+    
     # Sample model using test set
     #gt = masked_data
     #BoDiffusion
@@ -260,53 +260,43 @@ def inference_function(dataloader, data, masked_data, model, mask, mask_extreme_
     )
     
     # inference using test split
-    imputation = sample_stDiff(model,
+    prediction = sample_stDiff(model,
                         dataloader=dataloader,
                         noise_scheduler=noise_scheduler,
                         args=args,
                         device=device,
-                        mask=mask,
-                        gt=gt,
                         num_step=diffusion_step,
                         sample_shape=gt.shape,
                         is_condi=True,
                         sample_intermediate=diffusion_step,
-                        is_classifier_guidance=False,
                         omega=0.2)
     
     #mask_boolean = (1-mask).astype(bool) #for partial completion
-    mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
+    #mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
     
     #Evaluate only on spot central
-    mask_boolean = mask_boolean[:,:,0]
-    data = data[:,:,0]
-    imputation = imputation[:,:,0]
-    
-    
-    if args.normalization_type == "0-1":
-        #Normalización 0 a 1 
-        data = denormalize_from_cero_to_one(data, max_norm, min_norm)
-        imputation = denormalize_from_cero_to_one(imputation, max_norm, min_norm)
-    elif args.normalization_type == "1-1":
-        #Normalización -1 a 1
-        data = denormalize_from_minus_one_to_one(data, max_norm, min_norm)
-        imputation = denormalize_from_minus_one_to_one(imputation, max_norm, min_norm)
-    else:
-        raise ValueError("Error: La entrada de la normalización no es válida")
+    #mask_boolean = mask_boolean[:,:,0]
+    #data = data[:,:,0]
+    #imputation = imputation[:,:,0]
+
+    data_denorm = denormalize_from_minus_one_to_one(data, max_norm, min_norm)
+    prediction = denormalize_from_minus_one_to_one(prediction, max_norm.cpu(), min_norm.cpu())
+
     
     
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
-        data_tensor = torch.tensor(data)
-        data = data_tensor + avg_tensor
+        data = data_denorm + avg_tensor
         data = np.array(data.cpu())
         # Sumar deltas más la expresión de la imputacion
-        imputation_tensor = torch.tensor(imputation)
-        imputation = imputation_tensor + avg_tensor
-        imputation = np.array(imputation.cpu())
-    metrics_dict = get_metrics(data, imputation, mask_boolean)
+        prediction = prediction + avg_tensor.to(prediction.device)
+        prediction = np.array(prediction)
+
+    # Arreglar mask_boolean
+    mask_boolean = np.full(data.shape, True, dtype=bool)
+    metrics_dict = get_metrics(data, prediction, mask_boolean)
     
-    return metrics_dict, imputation
+    return metrics_dict, prediction
 
         
 def get_spatial_neighbors(adata: ad.AnnData, n_hops: int, hex_geometry: bool) -> dict:

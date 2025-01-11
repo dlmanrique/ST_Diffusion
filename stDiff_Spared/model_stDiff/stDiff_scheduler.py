@@ -83,8 +83,12 @@ class NoiseScheduler():
         s1 = self.sqrt_inv_alphas_cumprod[t]
         s2 = self.sqrt_inv_alphas_cumprod_minus_one[t]
         
-        s1 = s1.reshape(-1, 1, 1).to(x_t.device)
-        s2 = s2.reshape(-1, 1, 1).to(x_t.device)
+        if len(x_t.shape) == 3:
+            s1 = s1.reshape(-1, 1, 1).to(x_t.device)
+            s2 = s2.reshape(-1, 1, 1).to(x_t.device)
+        else:
+            s1 = s1.reshape(-1, 1).to(x_t.device)
+            s2 = s2.reshape(-1, 1).to(x_t.device)
         
         x0 = s1 * x_t - s2 * noise
         if args.normalization_type == "0-1":
@@ -106,8 +110,12 @@ class NoiseScheduler():
         s1 = self.posterior_mean_coef1[t]
         s2 = self.posterior_mean_coef2[t]
         
-        s1 = s1.reshape(-1, 1, 1).to(x_t.device)
-        s2 = s2.reshape(-1, 1, 1).to(x_t.device)
+        if len(x_t.shape) == 3:
+            s1 = s1.reshape(-1, 1, 1).to(x_t.device)
+            s2 = s2.reshape(-1, 1, 1).to(x_t.device)
+        else: 
+            s1 = s1.reshape(-1, 1).to(x_t.device)
+            s2 = s2.reshape(-1, 1).to(x_t.device)
         
         mu = s1 * x_0 + s2 * x_t
         return mu
@@ -159,6 +167,8 @@ class NoiseScheduler():
             if t > 0:
                 noise = torch.randn_like(model_output)
                 variance = (self.get_variance(t) ** 0.5) * noise
+            else:
+                pass
         except:
             noise = torch.randn_like(model_output)
             variance = self.get_variance(t) ** 0.5
