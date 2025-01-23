@@ -191,8 +191,7 @@ class DiTblock(nn.Module):
         approx_gelu = lambda: nn.GELU()
         
         mlp_hidden_dim = int(feature_dim * mlp_ratio)
-        self.mlp = Mlp(in_features=feature_dim, hidden_features=mlp_hidden_dim, act_layer=approx_gelu, drop=0)
-        
+        self.mlp = Mlp(in_features=feature_dim, hidden_features=mlp_hidden_dim, act_layer=approx_gelu)
         
         self.adaLN_modulation = nn.Sequential(
             nn.SiLU(),
@@ -435,6 +434,7 @@ class DiT_stDiff(nn.Module):
             t = self.time_emb(t) # t.shape (batch) -> (batch, hidden_size)
             y = self.cond_layer(y[0]) # shape (batch, UNI features dim) -> (batch, hidden_size)
             cond = t + y
+            #cond = t
 
             for blk in self.blks:
                 x = blk(x, cond)

@@ -1,0 +1,3 @@
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --dataset mirzazadeh_human_small_intestine
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --dataset villacampa_mouse_brain
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --dataset mirzazadeh_mouse_brain

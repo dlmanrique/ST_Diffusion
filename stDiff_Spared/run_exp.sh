@@ -1,10 +1,2 @@
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset villacampa_lung_organoid
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset 10xgenomic_mouse_brain_sagittal_posterior
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset abalo_human_squamous_cell_carcinoma
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset erickson_human_prostate_cancer_p1
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset mirzazadeh_human_small_intestine
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset mirzazadeh_mouse_bone
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset mirzazadeh_mouse_brain
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset vicari_human_striatium
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset villacampa_mouse_brain
-CUDA_VISIBLE_DEVICES=3 python UNI_feature_extractor.py --dataset vicari_mouse_brain
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset villacampa_lung_organoid
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset abalo_human_squamous_cell_carcinoma

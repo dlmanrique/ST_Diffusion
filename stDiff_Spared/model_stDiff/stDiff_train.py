@@ -33,6 +33,7 @@ def normal_train_stDiff(model,
                  avg_tensor,
                  wandb_logger,
                  args,
+                 st_data_train,
                  st_data_val,
                  adata_valid,
                  lr: float = 1e-4,
@@ -63,10 +64,10 @@ def normal_train_stDiff(model,
     )
 
     #Define Loss function
-    criterion = nn.MSELoss()
+    criterion = nn.MSELoss(reduction=args.reduction_type)
     model.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
     #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20, verbose=True, threshold=1e-4, cooldown=10, min_lr=5e-8)
     
@@ -131,28 +132,48 @@ def normal_train_stDiff(model,
         
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
-            
-            metrics_dict, imputation_data = inference_function(dataloader=valid_dataloader,
-                                        data=st_data_val, 
-                                        model=model,
-                                        max_norm = max_norm[1],
-                                        min_norm = min_norm[1],
-                                        avg_tensor = avg_tensor,
-                                        diffusion_step=args.diffusion_steps_train,
-                                        device=device,
-                                        args=args
-                                        )
-            #breakpoint()
-            adata_valid.layers["diff_pred"] = imputation_data
-            log_pred_image_extreme_completion(adata_valid, args, epoch)
+            model.eval()
+            with torch.no_grad():
 
-            if metrics_dict["MSE"] < min_mse:
-                min_mse = metrics_dict["MSE"]
-                best_mse = metrics_dict["MSE"]
-                best_pcc = metrics_dict["PCC-Gene"]
+                metrics_dict_val, imputation_data_val = inference_function(dataloader=valid_dataloader,
+                                            data=st_data_val, 
+                                            model=model,
+                                            max_norm = max_norm[1],
+                                            min_norm = min_norm[1],
+                                            avg_tensor = avg_tensor,
+                                            diffusion_step=args.diffusion_steps_train,
+                                            device=device,
+                                            args=args
+                                            )
+
+                adata_valid.layers["diff_pred"] = imputation_data_val
+                #log_pred_image_extreme_completion(adata_valid, args, epoch)
+                
+                metrics_dict_train, imputation_data_train = inference_function(dataloader=valid_dataloader,
+                                            data=st_data_val, 
+                                            model=model,
+                                            max_norm = max_norm[1],
+                                            min_norm = min_norm[1],
+                                            avg_tensor = avg_tensor,
+                                            diffusion_step=args.diffusion_steps_train,
+                                            device=device,
+                                            args=args
+                                            )
+            
+                
+                
+
+            if metrics_dict_val["MSE"] < min_mse:
+                min_mse = metrics_dict_val["MSE"]
+                best_mse = metrics_dict_val["MSE"]
+                best_pcc = metrics_dict_val["PCC-Gene"]
                 torch.save(model.state_dict(), os.path.join("Experiments", exp_name, save_path))
             #save_metrics_to_csv(args.metrics_path, args.dataset, "valid", metrics_dict)
-            wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
+            wandb_logger.log({"MSE_val": metrics_dict_val["MSE"], "PCC_val": metrics_dict_val["PCC-Gene"]})
+            #wandb_logger.log({"MSE_train": metrics_dict_train["MSE"], "PCC_train": metrics_dict_train["PCC-Gene"]})
+
+            model.train()
+
     # Save the best MSE and best PCC on the validation set
-    wandb_logger.log({"best_MSE":best_mse, "best_PCC": best_pcc})
+    wandb_logger.log({"best_MSE_val":best_mse, "best_PCC_val": best_pcc})
 

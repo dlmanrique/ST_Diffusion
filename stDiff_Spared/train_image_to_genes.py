@@ -41,11 +41,11 @@ def main():
     wandb.login()
     if args.debbug_wandb:
         exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="debbugs", entity="spared_v2", name=exp_name + '_debbug')
+        wandb.init(project="debbugs_v2", entity="spared_v2", name=exp_name + '_debbug')
 
     else:
         exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
+        wandb.init(project="Image_to_Genes", entity="spared_v2", name=exp_name )
     #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
@@ -65,7 +65,8 @@ def main():
                'scheduler_fixed': True,
                "diffusion_steps_train": args.diffusion_steps_train, 
                "diffusion_steps_test": args.diffusion_steps_test, 
-               'noise_scheduler': args.noise_scheduler})
+               'noise_scheduler': args.noise_scheduler,
+               'reduction': args.reduction_type})
     
     ### Parameters
     # Define the training parameters
@@ -162,6 +163,7 @@ def main():
                             avg_tensor = avg_tensor,
                             wandb_logger=wandb,
                             args=args,
+                            st_data_train=norm_st_data_train,
                             st_data_val=norm_st_data_valid,
                             adata_valid = val_adata,
                             lr=lr,
@@ -174,25 +176,51 @@ def main():
 
     if "test" in splits:
         model.load_state_dict(torch.load(os.path.join("Experiments", exp_name, save_path_prefix)))
+        model.eval()
+        
+        metrics_dict_train, imputation_data_train = inference_function(dataloader=train_dataloader,
+                                    data=norm_st_data_train, 
+                                    model=model,
+                                    max_norm = max_train,
+                                    min_norm = min_train,
+                                    avg_tensor = avg_tensor,
+                                    diffusion_step=args.diffusion_steps_test,
+                                    device=device,
+                                    args=args
+                                    )
+        
+        metrics_dict_val, imputation_data_val = inference_function(dataloader=val_dataloader,
+                                        data=norm_st_data_valid, 
+                                        model=model,
+                                        max_norm = max_valid,
+                                        min_norm = min_valid,
+                                        avg_tensor = avg_tensor,
+                                        diffusion_step=args.diffusion_steps_test,
+                                        device=device,
+                                        args=args
+                                        )
+
+        #log_pred_image_extreme_completion(adata_valid, args, epoch)
+        
+    
         test_metrics, imputation_data = inference_function(dataloader=test_dataloader,
                                         data= norm_st_data_test, 
                                         model=model,
                                         max_norm = max_test,
                                         min_norm = min_test,
                                         avg_tensor = avg_tensor,
-                                        diffusion_step=args.diffusion_steps_train,
+                                        diffusion_step=args.diffusion_steps_test,
                                         device=device,
                                         args=args
                                         )
-
         adata_test = adata[adata.obs["split"]=="test"]
         adata_test.layers["diff_pred"] = imputation_data
         #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
         #log_pred_image_extreme_completion(adata_test, args, -1)
         #save_metrics_to_csv(args.metrics_path, args.dataset, "test", test_metrics)
+        wandb.log({"test_MSE_train": metrics_dict_train["MSE"], "test_PCC_train": metrics_dict_train["PCC-Gene"]})
+        wandb.log({"test_MSE_val": metrics_dict_val["MSE"], "test_PCC_val": metrics_dict_val["PCC-Gene"]})
         wandb.log({"test_MSE": test_metrics["MSE"], "test_PCC": test_metrics["PCC-Gene"]})
-        #print(test_metrics)
-
 
 
 

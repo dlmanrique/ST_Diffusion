@@ -25,6 +25,12 @@ str2floatlist = lambda x: [float(i) for i in x.split(',')]
 str2h_list = lambda x: [str2intlist(i) for i in x.split('//')[1:]]
 
 
+#Seed
+seed = 1202
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
 
 def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
@@ -45,13 +51,14 @@ def get_main_parser():
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
     parser.add_argument('--num_epoch', type=int, default=3000, help='Number of training epochs')
     parser.add_argument('--diffusion_steps_train', type=int, default=1500, help='Number of diffusion steps')
-    parser.add_argument('--diffusion_steps_test', type=int, default=1500, help='Number of diffusion steps')
-    parser.add_argument('--batch_size', type=int, default=128, help='The batch size to train model')
+    parser.add_argument('--diffusion_steps_test', type=int, default=50, help='Number of diffusion steps')
+    parser.add_argument('--batch_size', type=int, default=256, help='The batch size to train model')
     parser.add_argument('--optim_metric',                   type=str,           default='MSE',                      help='Metric that should be optimized during training.', choices=['PCC-Gene', 'MSE', 'MAE', 'Global'])
     parser.add_argument('--optimizer',                      type=str,           default='Adam',                     help='Optimizer to use in training. Options available at: https://pytorch.org/docs/stable/optim.html It will just modify main optimizers and not sota (they have fixed optimizers).')
     parser.add_argument('--momentum',                       type=float,         default=0.9,                        help='Momentum to use in the optimizer if it receives this parameter. If not, it is not used. It will just modify main optimizers and not sota (they have fixed optimizers).')
     parser.add_argument('--step_size',                       type=float,         default=600,                         help='Step size to use in learning rate scheduler')
     parser.add_argument("--scheduler",                        type=str2bool,           default=True,                                help='Whether to use LR scheduler or not')
+    parser.add_argument("--reduction_type",  type=str, default='mean', help='Reduction type used for MSE loss')
     # Model parameters ########################################################################################################################################################################
     parser.add_argument('--depth', type=int, default=12, help='' )
     parser.add_argument('--hidden_size', type=int, default=1024, help='Size of latent space')
@@ -86,7 +93,7 @@ def get_main_parser():
     # Data masking parameters ################################################################################################################################################################
     parser.add_argument('--neighborhood_type',              type=str,           default='nn_distance',              help='The method used to select the neighboring spots.', choices=['circular_hops', 'nn_distance'])
     parser.add_argument('--num_neighs',                     type=int,           default=18,                          help='Amount of neighbors to consider for context during imputation.')
-    parser.add_argument('--num_hops',                       type=int,           default=1,                          help='Amount of graph hops to consider for context during imputation if neighborhoods are built based on proximity rings.')
+    parser.add_argument('--num_hops',                       type=int,           default=-1,                          help='Amount of graph hops to consider for context during imputation if neighborhoods are built based on proximity rings.')
     # Visualization parameters ################################################################################################################################################################
     parser.add_argument('--gene_id',                        type=int,           default=0,                          help='Gene ID to plot.')
     # W&B usage parameters ####################################################################################################################################################################
@@ -235,6 +242,7 @@ def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, 
     from model_stDiff.sample import sample_stDiff
     """
     Function designed to do inference for validation and test steps.
+    The data must be normalized between -1 to 1.
     Params:
         -dataloader (Pytorch.Dataloader): dataloader containing batches, each element has -> (st_data, st_masked_data, mask)
         -data (np.array): original st data
@@ -292,7 +300,7 @@ def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, 
         prediction = prediction + avg_tensor.to(prediction.device)
         prediction = np.array(prediction)
 
-    # Arreglar mask_boolean
+    # La mascara aplica para todo
     mask_boolean = np.full(data.shape, True, dtype=bool)
     metrics_dict = get_metrics(data, prediction, mask_boolean)
     
@@ -490,3 +498,20 @@ def get_mask_extreme_completion(adata, mask):
     mask_extreme_completion[imp_values] = 1
     mask_extreme_completion[:,:,1:] = 0
     return mask_extreme_completion
+
+
+def compare_states(state1, state2, name="State"):
+    for key in state1.keys():
+        if isinstance(state1[key], torch.Tensor):
+            if not torch.equal(state1[key], state2[key]):
+                print(f"{name} mismatch: Key '{key}' differs.")
+                return False
+        elif isinstance(state1[key], dict):
+            # Recursively compare nested dictionaries
+            if not compare_states(state1[key], state2[key], name=f"{name}->{key}"):
+                return False
+        else:
+            if state1[key] != state2[key]:
+                print(f"{name} mismatch: Key '{key}' differs.")
+                return False
+    return True
