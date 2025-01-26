@@ -9,7 +9,7 @@ class ImageEncoder():
         The return is the weights of the encoder
         """
         if self.encoder_name == 'uni':
-            from Images_encoders.uni import UniEncoder
+            from Latents.Images_encoders.uni import UniEncoder
             encoder_class =  UniEncoder()
 
         else:
@@ -25,7 +25,7 @@ class GeneAutoencoder():
 
     def get_gene_autoencoder(self, configs: dict):
         #TODO: if I have more than one option, add the if statements to support that case.
-        from Gene_Autoencoders.gene_autoencoder import Transformer_encoder_mlp_decoder
+        from Latents.Gene_Autoencoders.gene_autoencoder import Transformer_encoder_mlp_decoder
         autoencoder =  Transformer_encoder_mlp_decoder(input_dim = configs['input_dim'], 
                                         latent_dim = configs['latent_dim'],
                                         embedding_dim = configs['embedding_dim'],
@@ -33,7 +33,7 @@ class GeneAutoencoder():
                                         num_heads = configs['num_heads']
                                         )
         
-        
+
         return autoencoder
 
 
