@@ -3,80 +3,51 @@ import warnings
 import torch
 import scanpy as sc
 
-
+from Encoders_helper import ImageEncoder, GeneAutoencoder
 from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
-from process_stDiff.data_2D import *
-
 from utils import *
+from data import SpaREDData
 
-from visualize_imputation import *
 import wandb
 from datetime import datetime
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-# Get parser and parse arguments
-parser = get_main_parser()
-args = parser.parse_args()
-args_dict = vars(args) #Not uses, maybe later usage
-
-# seed everything
-seed = args.seed
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-
-if args.vlo == False:
-    #TODO: arreglar el tema del env para que esto sirva
-    # Esto molestaba la instalacion con lo de UNI, solo lo quito mientras leo los adata, problema futuro
-    #from spared.datasets import get_dataset
-    pass
-
-
 
 def main():
     ### Wandb 
-    wandb.login()
     if args.debbug_wandb:
-        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="debbugs_v2", entity="spared_v2", name=exp_name + '_debbug')
+        wandb.init(project='debbugs_v2', entity = 'spared_v2', config=vars(args), name=exp_name + '_debbug')
 
     else:
-        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="Image_to_Genes", entity="spared_v2", name=exp_name )
-    #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
-    wandb.config = {"lr": args.lr, "dataset": args.dataset}
-    wandb.log({"lr": args.lr, 
-               "dataset": args.dataset, 
-               "num_epoch": args.num_epoch, 
-               "num_heads": args.head,
-               "depth": args.depth, "hidden_size": args.hidden_size, 
-               "save_path": args.save_path, "loss_type": args.loss_type,
-               "concat_dim": args.concat_dim,
-               "masked_loss": args.masked_loss,
-               "model_type": args.model_type,
-               "scheduler": args.scheduler,
-               "layer": args.prediction_layer,
-               "normalizacion": args.normalization_type,
-               "batch_size": args.batch_size,
-               "num_hops": args.num_hops,
-               'scheduler_fixed': True,
-               "diffusion_steps_train": args.diffusion_steps_train, 
-               "diffusion_steps_test": args.diffusion_steps_test, 
-               'noise_scheduler': args.noise_scheduler,
-               'reduction': args.reduction_type})
+        wandb.init(project='Image_to_Genes', entity = 'spared_v2', config=vars(args), name=exp_name + '_debbug')
     
-    ### Parameters
-    # Define the training parameters
-    lr = args.lr
-    depth = args.depth
-    num_epoch = args.num_epoch
-    batch_size = args.batch_size
-    hidden_size = args.hidden_size
-    head = args.head
-    device = torch.device('cuda')
+    #Save path
+    save_path = os.path.join("Experiments", args.dataset, exp_name)
+    os.makedirs(save_path, exist_ok=True)
+
+    # Load Image encoder (patch encoder)
+    # Load the class 
+    image_encoder = ImageEncoder(args.image_encoder)
+    # Get the model weights of the patch encoder
+    image_encoder_model = image_encoder.get_patch_encoder_model()
+
+    # Load gene autoencoder
+    #TODO: replace this using args or something else in order to experiment with different gene_autoencoder
+    configs = {'input_dim': 1024,
+               'latent_dim': 128,
+               'embedding_dim': 256,
+               'num_layers': 2,
+               'num_heads':2}
+    
+    gene_autoencoder = GeneAutoencoder(args.gene_autoencoder)
+    gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
+
+    spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model)
+
+
 
     
     # Get dataset
@@ -136,14 +107,15 @@ def main():
         is_shuffle=False)
 
     ### DIFFUSION MODEL ##########################################################################
+    #FIXME: how to replace this num_nn calculation
     num_nn = st_data_train[0].shape
 
     # Define the model
     model = DiT_stDiff(
         input_size=num_nn,  
-        hidden_size=hidden_size, 
-        depth=depth,
-        num_heads=head,
+        hidden_size=args.hidden_size, 
+        depth=args.depth,
+        num_heads=args.head,
         classes=6, 
         args=args,
         mlp_ratio=4.0,
@@ -229,4 +201,12 @@ def main():
 
 
 if __name__=='__main__':
+
+    exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    parser = get_main_parser()
+    args = parser.parse_args()
+    print(args)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
     main()

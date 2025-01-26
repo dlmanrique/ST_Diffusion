@@ -236,7 +236,7 @@ def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.
 
     return adata
 
-def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
+def inference_function(dataloader, gt_data, model, max_norm, min_norm, avg_tensor, diffusion_step, device, args):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
     from model_stDiff.sample import sample_stDiff
@@ -260,7 +260,6 @@ def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, 
     # Sample model using test set
     #gt = masked_data
     #BoDiffusion
-    gt = data
     # Define noise scheduler
     noise_scheduler = NoiseScheduler(
         num_timesteps=diffusion_step,
@@ -274,7 +273,7 @@ def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, 
                         args=args,
                         device=device,
                         num_step=diffusion_step,
-                        sample_shape=gt.shape,
+                        sample_shape=gt_data.shape,
                         is_condi=True,
                         sample_intermediate=diffusion_step,
                         omega=0.2)
@@ -287,7 +286,7 @@ def inference_function(dataloader, data, model, max_norm, min_norm, avg_tensor, 
     #data = data[:,:,0]
     #imputation = imputation[:,:,0]
 
-    data_denorm = denormalize_from_minus_one_to_one(data, max_norm, min_norm)
+    data_denorm = denormalize_from_minus_one_to_one(gt_data, max_norm, min_norm)
     prediction = denormalize_from_minus_one_to_one(prediction, max_norm.cpu(), min_norm.cpu())
 
     

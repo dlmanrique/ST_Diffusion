@@ -9,17 +9,13 @@ from .stDiff_scheduler import NoiseScheduler
 from utils import *
 import wandb
 import datetime 
-from spared.metrics import get_metrics
+from metrics import get_metrics
 from datetime import datetime
-from visualize_imputation import *
 
-# Get parser and parse arguments
-parser = get_main_parser()
-args = parser.parse_args()
-args_dict = vars(args)
+
 
 #Seed
-seed = args.seed
+seed = 1202
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
