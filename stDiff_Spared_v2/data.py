@@ -64,23 +64,30 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.min_val, self.max_val = np.inf, -np.inf 
         
         if args.num_neighs == -1:
+            print(f'Construct dataloader by spots using {self.args.gene_autoencoder} and {self.args.image_encoder}')
             self.spot_data = self.build_spot_data()
             self.DiT_input_dim = self.spot_data['0']['encoded_spot_exp'].shape # De aca tengo (128)
             self.image_features_dim = self.spot_data['0']['patches'].shape[0] # De aca tengo el 1024 de UNI
         else:
+            print(f'Construct dataloader by matrix using {self.args.gene_autoencoder} and {self.args.image_encoder}')
             # Process to get neighboors
             self.adj_mat = None
             self.get_adjacency(self.args.num_neighs)
             self.neighborhoods = self.build_neighborhoods()
-            self.DiT_input_dim = self.neighborhoods['0']['encoded_exp_matrix'].shape[1:]   # De aca tengo (7,128)     
+            self.DiT_input_dim = self.neighborhoods['0']['encoded_exp_matrix'].squeeze().shape   # De aca tengo (7,128)     
             self.image_features_dim = self.neighborhoods['0']['patches'].shape[-1] # De aca tengo el 1024 para UNI
 
         
-        
+        # Normalize data in every case
+        if self.args.gene_autoencoder:
+            print('Normalize input of DiT which is encoded gene expression')
+            # The gene autoencoder exists
+            self.normalize_full_encoded_data()
+        else:
+            print('Normalize input of DiT which is raw gene expression')
+            # Use of raw st data 
+            self.normalize_full_raw_data()
 
-        # Normalize data if needed (data that will be the model's input, i.e. encoded matrices)
-        if self.args.normalize_input:
-            self.normalize_full_data()
 
 
     def get_adjacency(self, num_neighs = 6):
@@ -153,7 +160,7 @@ class stLDMDataset(torch.utils.data.Dataset):
                                             'patches': self.patch_features[nn_indices,:]}
             else:
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
-                                            "exp_matrix": exp_matrix, 
+                                            "exp_matrix": exp_matrix.squeeze(), 
                                             "encoded_exp_matrix": exp_matrix,
                                             'patches': self.patch_features[nn_indices,:]}
 
@@ -205,7 +212,7 @@ class stLDMDataset(torch.utils.data.Dataset):
 
         return all_spots_data
     
-    def normalize_full_data(self):
+    def normalize_full_encoded_data(self):
         """
         Calls for the normalization function from utils to normalize all neighborhoods/samples
         based on the min and max values of the complete data split.
@@ -220,6 +227,20 @@ class stLDMDataset(torch.utils.data.Dataset):
             for spot_idx in self.spot_data.keys():
                 encoded_exp_spot = self.spot_data[spot_idx][encoded_data_key]
                 self.spot_data[spot_idx][encoded_data_key] = data_normalization(encoded_exp_spot, self.min_val, self.max_val) 
+
+
+    def normalize_full_raw_data(self):
+        encoded_data_key = 'spot_expression' if self.args.num_neighs == -1 else 'exp_matrix'
+
+        if encoded_data_key == 'exp_matrix':
+            for spot_idx in self.neighborhoods.keys():
+                encoded_exp_mt = self.neighborhoods[spot_idx][encoded_data_key]
+                self.neighborhoods[spot_idx][encoded_data_key] = data_normalization(encoded_exp_mt, self.min_val, self.max_val)  
+        else:
+            for spot_idx in self.spot_data.keys():
+                encoded_exp_spot = self.spot_data[spot_idx][encoded_data_key]
+                self.spot_data[spot_idx][encoded_data_key] = data_normalization(encoded_exp_spot, self.min_val, self.max_val) 
+
 
 
 
@@ -302,7 +323,8 @@ class SpaREDData():
     def train_dataloader(self):
         # item is a dictionary with keys ['spot_id', 'exp_matrix', 'exp_mask', 'encoded_exp_matrix', 'condition_matrix', 'condition_mask']
         # keys used during train: ['encoded_exp_matrix', 'condition_matrix', 'condition_mask']
-        return DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, drop_last=False) #, num_workers=self.num_workers)
+        generator = torch.Generator(device='cuda')
+        return DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, drop_last=False, generator=generator) #, num_workers=self.num_workers)
 
     def val_dataloader(self):
         return DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False, drop_last=False) #, num_workers=self.num_workers)

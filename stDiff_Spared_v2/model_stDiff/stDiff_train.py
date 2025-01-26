@@ -1,16 +1,12 @@
 import torch
 import numpy as np
-import os
 import torch.nn as nn
 from tqdm import tqdm
 from ray.air import session
 import os
 from .stDiff_scheduler import NoiseScheduler
 from utils import *
-import wandb
-import datetime 
 from metrics import get_metrics
-from datetime import datetime
 
 
 
@@ -21,25 +17,18 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
 
-def normal_train_stDiff(model,
-                 train_dataloader,
-                 valid_dataloader,
-                 max_norm,
-                 min_norm, 
-                 avg_tensor,
-                 wandb_logger,
-                 args,
-                 st_data_train,
-                 st_data_val,
-                 adata_valid,
-                 lr: float = 1e-4,
-                 num_epoch: int = 1400,
-                 device=torch.device('cuda'),
-                 is_tqdm: bool = True,
-                 is_tune: bool = False,
-                 pred_type: str = "noise",
-                 save_path = "ckpt/demo_spared.pt",
-                 exp_name = ""):
+def train_stDiff(model,
+                data,
+                args,
+                gene_autoencoder,
+                image_encoder,
+                save_path,
+                wandb_logger,
+                device=torch.device('cuda'),
+                is_tqdm: bool = True,
+                is_tune: bool = False,
+                exp_name = ""
+                ):
     #mask = None 
     """
 
@@ -55,42 +44,59 @@ def normal_train_stDiff(model,
         NotImplementedError: _description_
     """
     noise_scheduler = NoiseScheduler(
-        num_timesteps=args.diffusion_steps_train,
-        beta_schedule=args.noise_scheduler
+        num_timesteps=args.train_diffusion_steps,
+        beta_schedule='cosine'
     )
 
     #Define Loss function
-    criterion = nn.MSELoss(reduction=args.reduction_type)
-    model.to(device)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
-    #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20, verbose=True, threshold=1e-4, cooldown=10, min_lr=5e-8)
+    criterion = nn.MSELoss(reduction='mean')
     
+    # Define optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+    
+    # TQDM configurations
     if is_tqdm:
-        t_epoch = tqdm(range(num_epoch), ncols=100)
+        t_epoch = tqdm(range(args.num_epochs), ncols=100)
     else:
-        t_epoch = range(num_epoch)
+        t_epoch = range(args.num_epochs)
 
+
+    model.to(device)
     model.train()
     min_mse = np.inf
     best_mse = 0
     best_pcc = 0
 
-    #exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    os.makedirs(os.path.join('Experiments', exp_name), exist_ok=True)
+    #Define keys for spot or neighbors
+    if args.num_neighs == -1:
+        # Spot type
+        original_st_data_key = 'spot_expression'
+        encoded_st_data_key = 'encoded_spot_exp'
+    else:
+        # Neighbors matrix type
+        original_st_data_key = 'exp_matrix'
+        encoded_st_data_key = 'encoded_exp_matrix'
     
     for epoch in t_epoch:
         epoch_loss = 0.
-        for i, (x, x_cond) in enumerate(train_dataloader): 
-            # En este caso x son los vectores de expresion normalizados (-1-1)
-            # x_cond es el vector de features de UNI con shape de 1024
+        for i, (batch_data) in enumerate(data.train_dataloader()): 
+            # En este caso x son los vectores de expresion encodeados u originales
+            # x_cond es el vector de features de parches
+
+            # Tomamos los datos encodeados si se quiere, sino pues tomamos los datos de st crudos
+            if args.gene_autoencoder:
+                # Como tengo gene autoencoder, tomo como 'x' los vectores de st encoded
+                x, x_cond =  batch_data[encoded_st_data_key], batch_data['patches']
+            else:
+                # Como no tengo gene autoencoder, la 'x' son los datos st crudos
+                x, x_cond =  batch_data[original_st_data_key], batch_data['patches']
+            
             x, x_cond = x.float().to(device), x_cond.float().to(device)
 
             noise = torch.randn(x.shape).to(device)
-
             
-            timesteps = torch.randint(1, args.diffusion_steps_train, (x.shape[0],)).long()
+            timesteps = torch.randint(1, args.train_diffusion_steps, (x.shape[0],)).long()
 
             x_t = noise_scheduler.add_noise(x,
                                             noise,
@@ -99,12 +105,22 @@ def normal_train_stDiff(model,
             # Datos de expresion y les sumo ruido en todas las posiciones
             x_noisy = x_t
 
-            # Como condicion tengo de input el vector de UNI de shape 1024
+            # Como condicion tengo de input el vector de features de patches
             cond = [x_cond]
 
             pred = model(x_noisy, t=timesteps.to(device), y=cond) 
+            
+            #Always compute the loss just in the central spot
+            if len(x.shape) == 3:
+                # Matrix model
+                # Create mask to extract just the info of the central spot
+                loss_mask = torch.zeros(pred.shape, dtype=torch.bool)
+                loss_mask[:,0, :] = True
+                loss = criterion(noise[loss_mask], pred[loss_mask])
 
-            loss = criterion(noise, pred)
+            else:
+                # Spot to spot model
+                loss = criterion(noise, pred)
 
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # type: ignore
@@ -121,13 +137,13 @@ def normal_train_stDiff(model,
         if is_tqdm:
             current_lr = scheduler.get_last_lr()[0]# Get the current learning rate
             #current_lr = optimizer.param_groups[0]['lr']
-            t_epoch.set_postfix_str(f'{pred_type} loss:{epoch_loss:.5f} lr:{current_lr:.6f}')  # type: ignore
+            t_epoch.set_postfix_str(f'noise loss:{epoch_loss:.5f} lr:{current_lr:.6f}')  # type: ignore
         if is_tune:
             session.report({'loss': epoch_loss})
         
         # compare MSE metrics and save best model
         #FIXME: cambiar esto por el 10 original
-        if epoch % (num_epoch//2) == 0 and epoch != 0:
+        if epoch % (args.num_epochs//2) == 0 and epoch != 0:
             model.eval()
             with torch.no_grad():
 

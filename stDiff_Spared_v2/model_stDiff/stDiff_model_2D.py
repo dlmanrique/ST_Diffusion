@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import math
 import einops
-from timm.models.vision_transformer import PatchEmbed, Attention, Mlp
-from utils import get_main_parser
-import numpy as np
+from timm.models.vision_transformer import Mlp
 
 #Seed
 seed = 1202
@@ -100,28 +98,7 @@ class Attention2Neighbors(nn.Module):
         x = self.proj(x)
         x = self.proj_drop(x)
         x = x.permute(0, 2, 1)  # Return to (batch_size, seq_length, feature_dim)
-        #print("attention Conv1D")
-        
-        # Opcion lineal con entrada matricial
-        """
-        # x shape: (batch_size, seq_length, feature_dim)
-        B, G, C = x.shape
-        qkv = self.qkv(x).reshape(B, G, 3, self.num_heads, self.head_dim)
-        qkv = einops.rearrange(qkv, 'b g n h d -> n b h g d')
-        q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple) (h c fph)
-        # Compute attention scores
-        attn = (q @ k.transpose(-2, -1)) * self.scale  # Dot product and scaling
-        attn = attn.softmax(dim=-1)  # Apply softmax to get probabilities
-        attn = self.attn_drop(attn)  # Dropout for regularization
 
-        # Apply attention scores to the value vectors
-        x = attn @ v  # Weighted sum of values
-        x = einops.rearrange(x, 'b h g d -> b g (h d)')  # Combine heads
-
-        # Project back to original dimension
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        """
         return x
     
 def modulate(x, shift, scale):
@@ -256,35 +233,23 @@ class FinalLayerNeighbors(nn.Module):
         # Linear for projection into output shape
         self.linear = nn.Linear(hidden_size, out_size, bias=True)
         # AdaLN modulation
-        
         self.adaLN_modulation = nn.Sequential(
             nn.SiLU(),
             nn.Linear(hidden_size, 2 * hidden_size, bias=True)
         )
         
-        #self.adaLN_modulation_v2 = nn.Sequential(nn.SiLU(), nn.Linear(hidden_size, 2 * hidden_size, bias=True))
-
-    def forward(self, x, c):
-        # shift scale
-        shift, scale = self.adaLN_modulation(c).chunk(2, dim=2) #dim cambiado de 1 a 2
+    def forward(self, x, cond):
+        shift, scale = self.adaLN_modulation(cond).chunk(2, dim=2) 
         x = modulate(self.norm_final(x), shift, scale)
-        # projection
-        #x = x.permute(0, 2, 1)  # Switch to (batch_size, feature_dim, seq_length)
         x = self.linear(x)
-        x = x.permute(0, 2, 1)
+        #x = x.permute(0, 2, 1)
         return x      
+    
+
 
 BaseBlock = {'dit':DiTblock}
 
-def get_positional_encoding(seq_len, d_model):
-    positional_encoding = np.zeros((seq_len, d_model))
-    for pos in range(seq_len):
-        operational_pos = pos + 1
-        for i in range(0, d_model, 2):
-            positional_encoding[pos, i] = np.sin(operational_pos / (10000 ** (i / d_model)))
-            if i + 1 < d_model:
-                positional_encoding[pos, i + 1] = np.cos(operational_pos / (10000 ** ((i) / d_model)))
-    return positional_encoding
+
 
 class DiT_stDiff(nn.Module):
     def __init__(self,
@@ -319,8 +284,8 @@ class DiT_stDiff(nn.Module):
         self.classes = classes
         self.mlp_ratio = mlp_ratio
         self.dit_type = dit_type
-        self.in_channels = self.input_size[0]
-        self.out_size = self.input_size[0]
+        self.in_channels = self.input_size[1]
+        self.out_size = self.input_size[1]
         self.images_features_dim = images_features_dim
 
         if args.concat_dim == 1:
@@ -346,7 +311,7 @@ class DiT_stDiff(nn.Module):
         # The number of input channels is 128 or 32, corresponding to the number of vectors to process.
         # 1D Convolutional cond layer
         self.neighbors_cond_layer = nn.Sequential(
-            nn.Conv1d(in_channels=self.in_channels, out_channels=hidden_size, kernel_size=3, stride=1, padding=1) #kernel_size=7, stride=1, padding=3
+            nn.Conv1d(in_channels=self.images_features_dim, out_channels=hidden_size, kernel_size=3, stride=1, padding=1) #kernel_size=7, stride=1, padding=3
         )
     
         # 1D Convolutional in-layer: 
@@ -365,9 +330,8 @@ class DiT_stDiff(nn.Module):
 
         # out layer
         self.out_layer = FinalLayer(self.project_size, self.out_size)
-        self.out_layer_negihbors = FinalLayerNeighbors(self.project_size, self.out_size)
-        # La capa de salida cambia ya que ahora no entran vecinos (7) sino vecinos X 3 (7X3)
-        #self.out_layer_dim2 = nn.Linear(self.input_size[1]*3, self.input_size[1], bias=True)
+        self.out_layer_neighbors = FinalLayerNeighbors(self.project_size, self.out_size)
+
         self.initialize_weights()
 
     def initialize_weights(self):
@@ -402,40 +366,40 @@ class DiT_stDiff(nn.Module):
         nn.init.constant_(self.out_layer.linear.bias, 0)
 
     def forward(self, x, t, y,**kwargs): 
-        breakpoint()
         # Caso de usar vecinos
         if len(x.shape) == 3:
-            num_neighs = x.shape[2]
-            x = self.in_layer(x)
-            t = self.time_emb(t)
-            #y = self.cond_layer(y)
-            cond = self.cond_layer(y[0])
+            x = x.permute(0,2,1) # x.shape (batch, 7, 128) -> (batch, 128, 7)
+            y = y[0].permute(0,2,1) # y.shape (batch, 7, 1024-uni_dim) -> (batch, 1024-uni_dim, 7)
+            num_neighs = x.shape[2] # 7
+            x = self.neighbors_in_layer(x) # x.shape (batch, 128, 7) -> (batch, 1024, 7)
+            t = self.time_emb(t) # t.shape (batch, 1024)
+
+            cond = self.neighbors_cond_layer(y) # y.shape (batch, 1024-uni_dim, 7) -> cond.shape (batch, 1024, 7)
             
-            t = t.unsqueeze(2).repeat(1, 1, num_neighs)
-            c = t + cond
+            t = t.unsqueeze(2).repeat(1, 1, num_neighs) #t.shape(batch, 1024, 7)
+            cond = t + cond
             
             # Permute so that the data can pass through ViT
             # form  (batch_size, feature_dim, seq_length) to  (batch_size, seq_length, feature_dim)
             # This is done so that the self.adaLN_modulation(c) layer, which consist of a linear proyection is able to process this input
-            c = c.permute(0, 2, 1)
-            x = x.permute(0, 2, 1)
+            cond = cond.permute(0, 2, 1) #cond.shape (batch, 1024, 7) -> (batch, 7, 1024)
+            x = x.permute(0, 2, 1) #x.shape (batch, 1024, 7) -> (batch, 7, 1024)
             
-            #c = c + pos
-            #x = x + pos
-            # torch.Size([256, 7, 512])
-            for blk in self.blks:
-                x = blk(x, c)
-            x = self.out_layer_negihbors(x, c)
-        
-        # Caso de no usar vecinos
-        else:
-            x = self.in_layer(x) # x.shape (batch, n_genes) -> (batch, hidden_size) 
-            t = self.time_emb(t) # t.shape (batch) -> (batch, hidden_size)
-            y = self.cond_layer(y[0]) # shape (batch, UNI features dim) -> (batch, hidden_size)
-            cond = t + y
-            #cond = t
-
+            # torch.Size([256, 7, 1024])
             for blk in self.blks:
                 x = blk(x, cond)
 
-        return self.out_layer(x, cond)
+            x = self.out_layer_neighbors(x, cond) #x.shape (batch, 7, 1024) -> (batch, 7, 128)
+        
+        # Caso de no usar vecinos
+        else:
+            x = self.in_layer(x) # x.shape (batch, n_genes or latent dimension) -> (batch, hidden_size) 
+            t = self.time_emb(t) # t.shape (batch) -> (batch, hidden_size)
+            y = self.cond_layer(y[0]) # shape (batch, UNI features dim) -> (batch, hidden_size)
+            cond = t + y
+
+            for blk in self.blks:
+                x = blk(x, cond)
+            x = self.out_layer(x, cond)
+
+        return x

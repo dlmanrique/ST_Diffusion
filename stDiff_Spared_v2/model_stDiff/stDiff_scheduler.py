@@ -76,6 +76,7 @@ class NoiseScheduler():
     def reconstruct_x0(self, x_t, t, noise):
         """ Get x0 from xt, noise.
         """        
+        
         s1 = self.sqrt_inv_alphas_cumprod[t]
         s2 = self.sqrt_inv_alphas_cumprod_minus_one[t]
         

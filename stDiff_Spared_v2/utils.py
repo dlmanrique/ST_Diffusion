@@ -32,7 +32,7 @@ def get_main_parser():
     parser.add_argument('--test_ckpts_path',                type=str,               default='',                              help='Path to checkpoints to be testing.')
     parser.add_argument('--normalized_data',                type=str2bool,          default=False,                           help='Whether or not to work with normalized expression matrix.')
     parser.add_argument('--lr',                             type=float,             default=0.0001,                          help='lr to train DiT.')
-    parser.add_argument('--batch_size',                     type=int,               default=128,                             help='Batch size used to train the diffusion model.')
+    parser.add_argument('--batch_size',                     type=int,               default=256,                             help='Batch size used to train the diffusion model.')
     parser.add_argument('--num_epochs',                     type=int,               default=3000,                            help='Number of training epochs.')
     parser.add_argument('--train_diffusion_steps',          type=int,               default=1500,                            help='Number of diffusion steps for training process.')
     parser.add_argument('--sample_diffusion_steps',         type=int,               default=1500,                            help='Number of diffusion steps for val or test process.')
