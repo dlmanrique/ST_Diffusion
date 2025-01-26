@@ -51,17 +51,19 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
         # Get original expression matrix based on selected prediction layer.
         self.expression_mtx = torch.tensor(self.adata.layers[self.pred_layer])
-
         # Calculate patch_features
         self.calculate_patch_embeddings()
-      
-        # Get adjacency matrix.
-        self.adj_mat = None
-        self.get_adjacency(self.args.num_neighs)
-
+        
         # Build and save each spot's neighborhood, and the min and max val of the data split
         self.min_val, self.max_val = np.inf, -np.inf 
-        self.neighborhoods = self.build_neighborhoods()
+        
+        if args.num_neighs == -1:
+            self.spot_data = self.build_spot_data()
+        else:
+            # Process to get neighboors
+            self.adj_mat = None
+            self.get_adjacency(self.args.num_neighs)
+            self.neighborhoods = self.build_neighborhoods()     
 
         # Normalize data if needed (data that will be the model's input, i.e. encoded matrices)
         if self.args.normalize_input:
@@ -80,24 +82,32 @@ class stLDMDataset(torch.utils.data.Dataset):
         """
         This function uses the image encoder and calculates the enbedding for each patch
         """
-        #FIXME: add possibility to load the files if it already exists
 
-        os.path.join('Image_features', self.args.dataset, f'{self.split_name}.pt')
-                     
-        flat_patches = self.adata.obsm[f'patches_scale_1.0']
-        patches = flat_patches.reshape((-1, 224, 224, 3))
-        patches = np.array(patches)
+        features_path = os.path.join('Image_features', self.args.image_encoder, self.args.dataset, f'{self.split_name}.pt')
+        if os.path.exists(features_path):
+            print(f"The image features already exists in: {features_path}")
+            self.patch_features = torch.load(features_path)
 
-        patches_dataset = TransformTensorDataset(patches, self.image_transforms)
+        else:
+            print(f"Calculating image features for {self.args.dataset}/{self.split_name} using {self.args.image_encoder} model")          
+            flat_patches = self.adata.obsm[f'patches_scale_1.0']
+            patches = flat_patches.reshape((-1, 224, 224, 3))
+            patches = np.array(patches)
+            patches_dataset = TransformTensorDataset(patches, self.image_transforms)
 
-        dataloader = DataLoader(patches_dataset, batch_size=256, shuffle=False)
-        patch_features = []
-        for batch in tqdm(dataloader):
-            batch = batch.to('cuda')                                  
-            batch_output = self.image_encoder(batch)    
-            patch_features.append(batch_output)
+            dataloader = DataLoader(patches_dataset, batch_size=256, shuffle=False)
+            patch_features = []
+            for batch in tqdm(dataloader):
+                batch = batch.to('cuda')                                  
+                batch_output = self.image_encoder(batch)    
+                patch_features.append(batch_output)
 
-        self.patch_features = torch.cat(patch_features, dim=0)
+            self.patch_features = torch.cat(patch_features, dim=0)
+
+            os.makedirs(os.path.join('Image_features', self.args.image_encoder, self.args.dataset), exist_ok=True)
+            save_path = os.path.join('Image_features',  self.args.image_encoder, self.args.dataset, f'{self.split_name}.pt')
+            torch.save(self.patch_features, save_path)
+            print(f'Image features saved in: {save_path}')
 
 
 
@@ -112,37 +122,78 @@ class stLDMDataset(torch.utils.data.Dataset):
         for idx, spot_name in enumerate(tqdm(self.adata.obs["unique_id"].unique())):
             # Get gt expression for idx spot and its nn
             spot_exp = self.expression_mtx[idx].unsqueeze(dim=0)
-            nn_exp = self.expression_mtx[self.adj_mat[:,idx]==1.]
+            nn_exp = self.expression_mtx[self.adj_mat[idx,:]==1.]
             exp_matrix = torch.cat((spot_exp, nn_exp), dim=0).type('torch.FloatTensor')
             exp_matrix = exp_matrix.unsqueeze(0)
-
+            nn_indices = torch.nonzero(self.adj_mat[idx,:], as_tuple=False)
+            nn_indices = nn_indices.squeeze(1).tolist() #lista de 6 vecinos
+            nn_indices = [idx] + nn_indices #Spot central + vecinos
+            
             
             # Encode neighborhood
             self.model_autoencoder.eval()
             with torch.no_grad():
                 encoded_exp_matrix = self.model_autoencoder.encoder(exp_matrix.to("cuda"))
-
             all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
                                            "exp_matrix": exp_matrix, 
-                                           "encoded_exp_matrix": encoded_exp_matrix.detach().cpu(),
-                                           'patches': None} #FIXME: check if it is best to leave it in CUDA or in the CPU
+                                           "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
+                                           'patches': self.patch_features[nn_indices,:]}
             
             # Set min and max values of the data split
             if encoded_exp_matrix.min().item() < self.min_val:
                 self.min_val = encoded_exp_matrix.min().item()
             if encoded_exp_matrix.max().item() > self.max_val:
                 self.max_val = encoded_exp_matrix.max().item()    
-
         return all_neighborhoods
+    
+
+    def build_spot_data(self):
+        """
+        Creates a dictionary of dictionaries, where each element/key corresponds to an individual spot in the
+        adata, and each inner-dictionary/value corresponds to its own information.
+        """
+        all_spots_data = {}
+        
+        for idx, spot_name in enumerate(tqdm(self.adata.obs["unique_id"].unique())):
+            # Get gt expression for idx spot and its nn
+            spot_exp = self.expression_mtx[idx].unsqueeze(dim=0).unsqueeze(dim=0).type('torch.FloatTensor')
+            
+
+            # Encode neighborhood
+            self.model_autoencoder.eval()
+            with torch.no_grad():
+                encoded_spot_exp = self.model_autoencoder.encoder(spot_exp.to("cuda"))
+
+            all_spots_data[str(idx)] = {"spot_id": spot_name, 
+                                           "spot_expression": spot_exp.squeeze(), 
+                                           "encoded_spot_exp": encoded_spot_exp.squeeze(),
+                                           'patch': self.patch_features[idx,:]}
+            
+            # Set min and max values of the data split
+            if encoded_spot_exp.min().item() < self.min_val:
+                self.min_val = encoded_spot_exp.min().item()
+            if encoded_spot_exp.max().item() > self.max_val:
+                self.max_val = encoded_spot_exp.max().item()  
+
+
+        return all_spots_data
     
     def normalize_full_data(self):
         """
         Calls for the normalization function from utils to normalize all neighborhoods/samples
         based on the min and max values of the complete data split.
         """
-        for spot_idx in self.neighborhoods.keys():
-            encoded_exp_mt = self.neighborhoods[spot_idx]["encoded_exp_matrix"]
-            self.neighborhoods[spot_idx]["encoded_exp_matrix"] = data_normalization(encoded_exp_mt, self.min_val, self.max_val)  
+        encoded_data_key = 'encoded_spot_exp' if self.args.num_neighs == -1 else 'encoded_exp_matrix'
+
+        if encoded_data_key == 'encoded_exp_matrix':
+            for spot_idx in self.neighborhoods.keys():
+                encoded_exp_mt = self.neighborhoods[spot_idx][encoded_data_key]
+                self.neighborhoods[spot_idx][encoded_data_key] = data_normalization(encoded_exp_mt, self.min_val, self.max_val)  
+        else:
+            for spot_idx in self.spot_data.keys():
+                encoded_exp_spot = self.spot_data[spot_idx][encoded_data_key]
+                self.spot_data[spot_idx][encoded_data_key] = data_normalization(encoded_exp_spot, self.min_val, self.max_val) 
+
 
 
     def __getitem__(self, idx):
@@ -154,7 +205,11 @@ class stLDMDataset(torch.utils.data.Dataset):
             - 'patches': 
 
         """
-        item = self.neighborhoods[str(idx)]
+        if self.args.num_neighs == -1:
+            item = self.spot_data[str(idx)]
+        
+        else:
+            item = self.neighborhoods[str(idx)]
 
         return item
 

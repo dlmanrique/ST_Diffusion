@@ -45,67 +45,10 @@ def main():
     gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
     gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
 
-
+    breakpoint()
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
 
 
-
-    
-    # Get dataset
-    if args.vlo:
-        # Carga el archivo .h5ad
-        adata = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
-    else:
-        adata = sc.read_h5ad(os.path.join('datasets', 'original', args.dataset, 'adata.h5ad'))
-
-    splits = adata.obs["split"].unique().tolist()
-    pred_layer = args.prediction_layer
-
-    
-    # Definir un tensor de promedio en caso de predecir una capa delta
-    num_genes = adata.shape[1]
-    if "deltas" in pred_layer:
-        format = args.prediction_layer.split("deltas")[0]
-        avg_tensor = torch.tensor(adata.var[f"{format}log1p_avg_exp"]).view(1, num_genes)
-    else:
-        avg_tensor = None
-    
-    # Split the data into train, val and test
-    # Load patch features data
-    train_adata = adata[adata.obs["split"]=="train"]
-    st_data_train = torch.tensor(train_adata.layers[pred_layer])
-    features_train = torch.load(os.path.join('UNI', args.dataset, 'train.pt'))
-
-    val_adata = adata[adata.obs["split"]=="val"]
-    st_data_val = torch.tensor(val_adata.layers[pred_layer])
-    features_val = torch.load(os.path.join('UNI', args.dataset, 'val.pt'))
-    
-    if len(splits) == 3:
-        test_adata = adata[adata.obs["split"]=="test"]
-        st_data_test = torch.tensor(test_adata.layers[pred_layer])
-        features_test = torch.load(os.path.join('UNI', args.dataset, 'test.pt'))
-
-
-    # Get dataloaders
-    # Define train and valid dataloaders
-    train_dataloader, norm_st_data_train, max_train, min_train = get_data_loader_image_to_gene(
-        st_data_train, # Datos de expresion de la layer que es
-        features_train, # Features de los parches asociados
-        batch_size=batch_size, 
-        is_shuffle=True)
-    
-    val_dataloader, norm_st_data_valid, max_valid, min_valid = get_data_loader_image_to_gene(
-        st_data_val, # Datos de expresion de la layer que es
-        features_val, # Features de los parches asociados
-        batch_size=batch_size, 
-        is_shuffle=False)
-
-    if len(splits) == 3:
-        test_dataloader, norm_st_data_test, max_test, min_test = get_data_loader_image_to_gene(
-        st_data_test, # Datos de expresion de la layer que es
-        features_test, # Features de los parches asociados
-        batch_size=batch_size, 
-        is_shuffle=False)
 
     ### DIFFUSION MODEL ##########################################################################
     #FIXME: how to replace this num_nn calculation

@@ -16,7 +16,7 @@ def get_main_parser():
     # Dataset parameters #####################################################################################################################################################################
     parser.add_argument('--dataset',                        type=str,               default='villacampa_lung_organoid',      help='Dataset to use.')
     parser.add_argument('--pred_layer',                     type=str,               default='c_t_deltas',                    help='SpaRED prediction layer to use.')
-    parser.add_argument('--num_neighs',                     type=int,               default=6,                               help='Amount of neighbors considered to build spot neighborhoods. Must be the same as the ones used to train the autoencoder.')
+    parser.add_argument('--num_neighs',                     type=int,               default=6,                               help='Amount of neighbors considered to build spot neighborhoods. Must be the same as the ones used to train the autoencoder. Use -1 to avoid neighbors info')
     parser.add_argument('--normalize_input',                type=str2bool,          default=True,                            help='Whether or not to normalize the DiT input data (encoded matrix) between -1 and 1 when preparing dataloader.')
     parser.add_argument('--autoencoder_ckpts_path',         type=str,               default='',                              help='Path to trained checkpoints of AE corresponding to the dataset used.')
     parser.add_argument('--decode_as_matrix',               type=str2bool,          default=True,                            help='Whether or not the decoder receives 2D inputs.')
