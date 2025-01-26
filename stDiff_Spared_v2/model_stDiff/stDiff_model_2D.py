@@ -293,6 +293,7 @@ class DiT_stDiff(nn.Module):
                  depth,
                  dit_type,
                  num_heads,
+                 images_features_dim,
                  classes,
                  args,
                  in_channels = 1,
@@ -313,10 +314,6 @@ class DiT_stDiff(nn.Module):
         self.args = args
         self.input_size = input_size
         self.hidden_size = hidden_size
-        if args.concat_dim == 1:
-            self.project_size = hidden_size*3 #concat by feature dim
-        else:
-            self.project_size = hidden_size
         self.depth = depth
         self.num_heads = num_heads
         self.classes = classes
@@ -324,7 +321,13 @@ class DiT_stDiff(nn.Module):
         self.dit_type = dit_type
         self.in_channels = self.input_size[0]
         self.out_size = self.input_size[0]
-        self.UNI_features_dim = 1024
+        self.images_features_dim = images_features_dim
+
+        if args.concat_dim == 1:
+            self.project_size = hidden_size*3 #concat by feature dim
+        else:
+            self.project_size = hidden_size
+
         
         # time emb
         self.time_emb = TimestepEmbedder(hidden_size=self.hidden_size)
@@ -334,8 +337,9 @@ class DiT_stDiff(nn.Module):
         self.in_layer = nn.Sequential(
             nn.Linear(self.in_channels, self.hidden_size)
         )
+
         self.cond_layer = nn.Sequential(
-            nn.Linear(self.UNI_features_dim, self.hidden_size)
+            nn.Linear(self.images_features_dim, self.hidden_size)
         )
         
         # When using a Conv1D layer with in channels as 128 or 32, I am analysing the 7-length vectors
@@ -398,7 +402,7 @@ class DiT_stDiff(nn.Module):
         nn.init.constant_(self.out_layer.linear.bias, 0)
 
     def forward(self, x, t, y,**kwargs): 
-        
+        breakpoint()
         # Caso de usar vecinos
         if len(x.shape) == 3:
             num_neighs = x.shape[2]

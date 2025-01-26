@@ -47,38 +47,32 @@ def main():
         gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
         gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
 
-    breakpoint()
+    
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
 
 
-
     ### DIFFUSION MODEL ##########################################################################
-    #FIXME: how to replace this num_nn calculation
-    num_nn = st_data_train[0].shape
-
-    # Define the diffusion model
-    model = DiT_stDiff(
-        input_size=[spared_data.gene_weights.sum(), args.num_neighs+1],  
-        hidden_size=args.dit_hidden_size, 
-        depth=args.dit_depth,
-        num_heads=args.num_heads,
-        classes=6, 
-        args=args,
-        mlp_ratio=4.0).to(device)
+    # Here I have the input dim for the DiT model, 128 or 7,128
+    input_size_dit = spared_data.train_data.DiT_input_dim
+    image_features_dim = spared_data.train_data.image_features_dim
 
 
     # Define the model
     model = DiT_stDiff(
-        input_size=num_nn,  
-        hidden_size=args.hidden_size, 
-        depth=args.depth,
-        num_heads=args.head,
+        input_size=input_size_dit,  
+        hidden_size=args.dit_hidden_size, 
+        depth=args.dit_depth,
+        num_heads=args.num_heads,
+        images_features_dim=image_features_dim,
         classes=6, 
         args=args,
         mlp_ratio=4.0,
         dit_type='dit')
     
+    breakpoint()
+    
     model.to(device)
+    #TODO: change this model name
     save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
 
     ### Train the model

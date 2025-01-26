@@ -84,7 +84,7 @@ def main():
         # Carga el archivo .h5ad
         adata = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
     else:
-        adata = sc.read_h5ad(os.path.join('datasets', 'original', args.dataset, 'adata.h5ad'))
+        adata = sc.read_h5ad(os.path.join('datasets', args.dataset, 'adata.h5ad'))
 
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
@@ -134,7 +134,7 @@ def main():
         features_test, # Features de los parches asociados
         batch_size=batch_size, 
         is_shuffle=False)
-
+    breakpoint()
     ### DIFFUSION MODEL ##########################################################################
     num_nn = st_data_train[0].shape
 

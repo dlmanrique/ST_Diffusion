@@ -26,7 +26,7 @@ class TransformTensorDataset(torch.utils.data.Dataset):
 
 
 class stLDMDataset(torch.utils.data.Dataset):
-    def __init__(self, args, adata, split_name, genes_autoencoder, image_encoder, image_transforms):
+    def __init__(self, args, adata, original_adata, split_name, genes_autoencoder, image_encoder, image_transforms):
         """
         This is a spatial data class that contains all the information about the dataset. It will call a reader class depending on the type
         of dataset (by now only visium and STNet are supported). The reader class will download the data and read it into an AnnData collection
@@ -45,7 +45,13 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.args = args
         self.pred_layer = args.pred_layer
         self.split_name = split_name
-        self.adata = adata
+        # Based on args, select the desired adata, original or 1024
+        # If args.gene_autoencoder == None -> then the experiment doesn't involves 1024 adata
+        if self.args.gene_autoencoder:
+            self.adata = adata
+        else:
+            self.adata = original_adata
+
         self.model_autoencoder = genes_autoencoder
         self.image_encoder = image_encoder
         self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
@@ -59,11 +65,18 @@ class stLDMDataset(torch.utils.data.Dataset):
         
         if args.num_neighs == -1:
             self.spot_data = self.build_spot_data()
+            self.DiT_input_dim = self.spot_data['0']['encoded_spot_exp'].shape # De aca tengo (128)
+            self.image_features_dim = self.spot_data['0']['patches'].shape[0] # De aca tengo el 1024 de UNI
         else:
             # Process to get neighboors
             self.adj_mat = None
             self.get_adjacency(self.args.num_neighs)
-            self.neighborhoods = self.build_neighborhoods()     
+            self.neighborhoods = self.build_neighborhoods()
+            self.DiT_input_dim = self.neighborhoods['0']['encoded_exp_matrix'].shape[1:]   # De aca tengo (7,128)     
+            self.image_features_dim = self.neighborhoods['0']['patches'].shape[-1] # De aca tengo el 1024 para UNI
+
+        
+        
 
         # Normalize data if needed (data that will be the model's input, i.e. encoded matrices)
         if self.args.normalize_input:
@@ -144,7 +157,9 @@ class stLDMDataset(torch.utils.data.Dataset):
                                             "encoded_exp_matrix": exp_matrix,
                                             'patches': self.patch_features[nn_indices,:]}
 
-            
+                # This variable is just for min and max calculation
+                encoded_exp_matrix = exp_matrix
+
             # Set min and max values of the data split
             if encoded_exp_matrix.min().item() < self.min_val:
                 self.min_val = encoded_exp_matrix.min().item()
@@ -159,6 +174,7 @@ class stLDMDataset(torch.utils.data.Dataset):
         adata, and each inner-dictionary/value corresponds to its own information.
         """
         all_spots_data = {}
+
         for idx, spot_name in enumerate(tqdm(self.adata.obs["unique_id"].unique())):
             # Get gt expression for idx spot and its nn
             spot_exp = self.expression_mtx[idx].unsqueeze(dim=0).unsqueeze(dim=0).type('torch.FloatTensor')
@@ -171,12 +187,12 @@ class stLDMDataset(torch.utils.data.Dataset):
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": encoded_spot_exp.squeeze(),
-                                            'patch': self.patch_features[idx,:]}
+                                            'patches': self.patch_features[idx,:]}
             else:
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": spot_exp.squeeze(),
-                                            'patch': self.patch_features[idx,:]}
+                                            'patches': self.patch_features[idx,:]}
                 # This variable is just for min and max calculation
                 encoded_spot_exp = spot_exp
                 
@@ -246,15 +262,15 @@ class SpaREDData():
         # Load datasets (1024-gene adata, and original SpaRED adata)
         self.load_data()
         # Get average values for 1024-genes adata
-        # Always the model work with this layer
+        # Always work with this layer
         self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
         # Set split data and create data modules
         self.setup()
-        self.train_data = stLDMDataset(self.args, self.spared_train, "train",
+        self.train_data = stLDMDataset(self.args, self.spared_train, self.spared_train_original, "train",
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
-        self.val_data = stLDMDataset(self.args, self.spared_val, "val", 
+        self.val_data = stLDMDataset(self.args, self.spared_val, self.spared_val_original,"val", 
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
-        self.test_data = stLDMDataset(self.args, self.spared_test, "test", 
+        self.test_data = stLDMDataset(self.args, self.spared_test, self.spared_test_original, "test", 
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
         
 
@@ -272,9 +288,16 @@ class SpaREDData():
 
     def setup(self):
         # Assign train/val/test datasets for use in dataloaders
+        # Use the 1024 adatas
         self.spared_train = self.full_adata[self.full_adata.obs["split"]=="train"] 
         self.spared_val = self.full_adata[self.full_adata.obs["split"]=="val"]
         self.spared_test = self.full_adata[self.full_adata.obs["split"]=="test"] if self.test_data_available else  self.full_adata[self.full_adata.obs["split"]=="val"]
+
+        # Original adatas (128 genes)
+        self.spared_train_original = self.original_full_adata[self.original_full_adata.obs["split"]=="train"] 
+        self.spared_val_original = self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
+        self.spared_test_original = self.original_full_adata[self.original_full_adata.obs["split"]=="test"] if self.test_data_available else  self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
+
 
     def train_dataloader(self):
         # item is a dictionary with keys ['spot_id', 'exp_matrix', 'exp_mask', 'encoded_exp_matrix', 'condition_matrix', 'condition_mask']
