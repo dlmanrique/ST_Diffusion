@@ -1,13 +1,32 @@
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import random_split, DataLoader, TensorDataset
 from tqdm import tqdm
 import anndata as ad
 from utils import *
 import numpy as np
 import torch
 import squidpy as sq
+from torchvision import transforms
+import os
+
+
+class TransformTensorDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, transform):
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        x = self.dataset[idx]
+
+        if self.transform:
+            x = self.transform(x)
+        return x
+
 
 class stLDMDataset(torch.utils.data.Dataset):
-    def __init__(self, args, adata, split_name, spared_genes_names, model_autoencoder):
+    def __init__(self, args, adata, split_name, genes_autoencoder, image_encoder, image_transforms):
         """
         This is a spatial data class that contains all the information about the dataset. It will call a reader class depending on the type
         of dataset (by now only visium and STNet are supported). The reader class will download the data and read it into an AnnData collection
@@ -27,10 +46,14 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.pred_layer = args.pred_layer
         self.split_name = split_name
         self.adata = adata
-        self.spared_genes_ids = spared_genes_names
-        self.model_autoencoder = model_autoencoder
+        self.model_autoencoder = genes_autoencoder
+        self.image_encoder = image_encoder
+        self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
         # Get original expression matrix based on selected prediction layer.
         self.expression_mtx = torch.tensor(self.adata.layers[self.pred_layer])
+
+        # Calculate patch_features
+        self.calculate_patch_embeddings()
       
         # Get adjacency matrix.
         self.adj_mat = None
@@ -53,20 +76,47 @@ class stLDMDataset(torch.utils.data.Dataset):
         sq.gr.spatial_neighbors(self.adata, coord_type='generic', n_neighs=num_neighs)
         self.adj_mat = torch.tensor(self.adata.obsp['spatial_connectivities'].todense())
 
+    def calculate_patch_embeddings(self):
+        """
+        This function uses the image encoder and calculates the enbedding for each patch
+        """
+        #FIXME: add possibility to load the files if it already exists
+
+        os.path.join('Image_features', self.args.dataset, f'{self.split_name}.pt')
+                     
+        flat_patches = self.adata.obsm[f'patches_scale_1.0']
+        patches = flat_patches.reshape((-1, 224, 224, 3))
+        patches = np.array(patches)
+
+        patches_dataset = TransformTensorDataset(patches, self.image_transforms)
+
+        dataloader = DataLoader(patches_dataset, batch_size=256, shuffle=False)
+        patch_features = []
+        for batch in tqdm(dataloader):
+            batch = batch.to('cuda')                                  
+            batch_output = self.image_encoder(batch)    
+            patch_features.append(batch_output)
+
+        self.patch_features = torch.cat(patch_features, dim=0)
+
+
+
     def build_neighborhoods(self):
         """
         Creates a dictionary of dictionaries, where each element/key corresponds to an individual spot in the
         adata, and each inner-dictionary/value corresponds to its own neighborhood's expression matrix,
         gene-expression-mask, and encoded expression matrix.
         """
-        breakpoint()
         all_neighborhoods = {}
-        for idx, spot_name in tqdm(enumerate(self.adata.obs["unique_id"].unique())):
+        
+        for idx, spot_name in enumerate(tqdm(self.adata.obs["unique_id"].unique())):
             # Get gt expression for idx spot and its nn
             spot_exp = self.expression_mtx[idx].unsqueeze(dim=0)
             nn_exp = self.expression_mtx[self.adj_mat[:,idx]==1.]
             exp_matrix = torch.cat((spot_exp, nn_exp), dim=0).type('torch.FloatTensor')
+            exp_matrix = exp_matrix.unsqueeze(0)
 
+            
             # Encode neighborhood
             self.model_autoencoder.eval()
             with torch.no_grad():
@@ -115,7 +165,7 @@ class stLDMDataset(torch.utils.data.Dataset):
 
 
 class SpaREDData():
-    def __init__(self, args, autoencoder, image_encoder_model):
+    def __init__(self, args, autoencoder, image_encoder_model, image_transforms):
         super().__init__()
 
         self.args = args
@@ -125,6 +175,7 @@ class SpaREDData():
         self.prediction_layer = args.pred_layer
         self.autoencoder = autoencoder
         self.image_encoder_model = image_encoder_model
+        self.image_transforms = image_transforms
 
         # Load datasets (1024-gene adata, and original SpaRED adata)
         self.load_data()
@@ -133,12 +184,12 @@ class SpaREDData():
         self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
         # Set split data and create data modules
         self.setup()
-        self.train_data = stLDMDataset(self.args, self.spared_train, "train", self.spared_genes_array,
-                                        self.autoencoder, self.image_encoder_model)
-        self.val_data = stLDMDataset(self.args, self.spared_val, "val", self.spared_genes_array, 
-                                        self.autoencoder, self.image_encoder_model)
-        self.test_data = stLDMDataset(self.args, self.spared_test, "test", self.spared_genes_array, 
-                                        self.autoencoder, self.image_encoder_model)
+        self.train_data = stLDMDataset(self.args, self.spared_train, "train",
+                                        self.autoencoder, self.image_encoder_model, self.image_transforms)
+        self.val_data = stLDMDataset(self.args, self.spared_val, "val", 
+                                        self.autoencoder, self.image_encoder_model, self.image_transforms)
+        self.test_data = stLDMDataset(self.args, self.spared_test, "test", 
+                                        self.autoencoder, self.image_encoder_model, self.image_transforms)
         
 
     def load_data(self):
@@ -150,7 +201,7 @@ class SpaREDData():
         self.n_genes = self.full_adata.n_vars
 
         # Load original SpaRED adata 
-        self.original_adata_path = f"original/{self.dataset_name}/adata.h5ad"
+        self.original_adata_path = f"datasets/original/{self.dataset_name}/adata.h5ad"
         self.original_full_adata = ad.read_h5ad(self.original_adata_path)
 
     def setup(self):

@@ -14,3 +14,5 @@ stDiff_Spared/datasets
 stDiff_Spared_v2/Pretrained_Encoders_Autoencoders/Gene_autoencoders
 stDiff_Spared_v2/Pretrained_Encoders_Autoencoders/Image_encoders
 stDiff_Spared_v2/wandb
+stDiff_Spared_v2/Image_features
+

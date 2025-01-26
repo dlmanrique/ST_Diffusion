@@ -32,7 +32,7 @@ def main():
     # Load the class 
     image_encoder = ImageEncoder(args.image_encoder)
     # Get the model weights of the patch encoder
-    image_encoder_model = image_encoder.get_patch_encoder_model()
+    image_encoder_model, transforms = image_encoder.get_patch_encoder_model()
 
     # Load gene autoencoder
     #TODO: replace this using args or something else in order to experiment with different gene_autoencoder
@@ -45,7 +45,8 @@ def main():
     gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
     gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
 
-    spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model)
+
+    spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
 
 
 

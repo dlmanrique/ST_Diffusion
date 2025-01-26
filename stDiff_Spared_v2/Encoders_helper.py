@@ -1,3 +1,5 @@
+import torch
+
 
 class ImageEncoder():
     def __init__(self, name):
@@ -15,8 +17,15 @@ class ImageEncoder():
         else:
             raise ValueError('The gene encoder not exist')
 
-        patch_encoder_model = encoder_class.get_encoder()
-        return patch_encoder_model
+        patch_encoder_model, transforms = encoder_class.get_encoder()
+
+
+        for param in patch_encoder_model.parameters():
+            param.requires_grad = False
+
+        patch_encoder_model.eval()
+
+        return patch_encoder_model, transforms
         
 
 class GeneAutoencoder():
@@ -35,10 +44,16 @@ class GeneAutoencoder():
                                             num_heads = configs['num_heads'])
         else:
             raise ValueError('The gene encoder not exist')
+
+
+        checkpoint = torch.load(self.autoencoder_path)
+        autoencoder.load_state_dict(checkpoint['state_dict'])
+        autoencoder.to('cuda')
         
-        breakpoint()
-        autoencoder = None
-        
+        for param in autoencoder.parameters():
+            param.requires_grad = False
+
+        autoencoder.eval()
 
         return autoencoder
 
