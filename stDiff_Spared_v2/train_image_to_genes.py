@@ -42,7 +42,7 @@ def main():
                'num_layers': 2,
                'num_heads':2}
     
-    gene_autoencoder = GeneAutoencoder(args.gene_autoencoder)
+    gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
     gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
 
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model)
