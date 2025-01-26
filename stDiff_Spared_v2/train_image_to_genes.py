@@ -42,8 +42,10 @@ def main():
                'num_layers': 2,
                'num_heads':2}
     
-    gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
-    gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
+    gene_autoencoder_model = None
+    if args.gene_autoencoder:
+        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
+        gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
 
     breakpoint()
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
@@ -53,6 +55,17 @@ def main():
     ### DIFFUSION MODEL ##########################################################################
     #FIXME: how to replace this num_nn calculation
     num_nn = st_data_train[0].shape
+
+    # Define the diffusion model
+    model = DiT_stDiff(
+        input_size=[spared_data.gene_weights.sum(), args.num_neighs+1],  
+        hidden_size=args.dit_hidden_size, 
+        depth=args.dit_depth,
+        num_heads=args.num_heads,
+        classes=6, 
+        args=args,
+        mlp_ratio=4.0).to(device)
+
 
     # Define the model
     model = DiT_stDiff(

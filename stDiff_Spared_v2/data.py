@@ -129,15 +129,21 @@ class stLDMDataset(torch.utils.data.Dataset):
             nn_indices = nn_indices.squeeze(1).tolist() #lista de 6 vecinos
             nn_indices = [idx] + nn_indices #Spot central + vecinos
             
-            
-            # Encode neighborhood
-            self.model_autoencoder.eval()
-            with torch.no_grad():
-                encoded_exp_matrix = self.model_autoencoder.encoder(exp_matrix.to("cuda"))
-            all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
-                                           "exp_matrix": exp_matrix, 
-                                           "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
-                                           'patches': self.patch_features[nn_indices,:]}
+            if self.model_autoencoder:
+                # Encode neighborhood
+                self.model_autoencoder.eval()
+                with torch.no_grad():
+                    encoded_exp_matrix = self.model_autoencoder.encoder(exp_matrix.to("cuda"))
+                all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
+                                            "exp_matrix": exp_matrix, 
+                                            "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
+                                            'patches': self.patch_features[nn_indices,:]}
+            else:
+                all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
+                                            "exp_matrix": exp_matrix, 
+                                            "encoded_exp_matrix": exp_matrix,
+                                            'patches': self.patch_features[nn_indices,:]}
+
             
             # Set min and max values of the data split
             if encoded_exp_matrix.min().item() < self.min_val:
@@ -153,22 +159,27 @@ class stLDMDataset(torch.utils.data.Dataset):
         adata, and each inner-dictionary/value corresponds to its own information.
         """
         all_spots_data = {}
-        
         for idx, spot_name in enumerate(tqdm(self.adata.obs["unique_id"].unique())):
             # Get gt expression for idx spot and its nn
             spot_exp = self.expression_mtx[idx].unsqueeze(dim=0).unsqueeze(dim=0).type('torch.FloatTensor')
             
+            if self.model_autoencoder:
+                self.model_autoencoder.eval()
+                with torch.no_grad():
+                    encoded_spot_exp = self.model_autoencoder.encoder(spot_exp.to("cuda"))
 
-            # Encode neighborhood
-            self.model_autoencoder.eval()
-            with torch.no_grad():
-                encoded_spot_exp = self.model_autoencoder.encoder(spot_exp.to("cuda"))
-
-            all_spots_data[str(idx)] = {"spot_id": spot_name, 
-                                           "spot_expression": spot_exp.squeeze(), 
-                                           "encoded_spot_exp": encoded_spot_exp.squeeze(),
-                                           'patch': self.patch_features[idx,:]}
-            
+                all_spots_data[str(idx)] = {"spot_id": spot_name, 
+                                            "spot_expression": spot_exp.squeeze(), 
+                                            "encoded_spot_exp": encoded_spot_exp.squeeze(),
+                                            'patch': self.patch_features[idx,:]}
+            else:
+                all_spots_data[str(idx)] = {"spot_id": spot_name, 
+                                            "spot_expression": spot_exp.squeeze(), 
+                                            "encoded_spot_exp": spot_exp.squeeze(),
+                                            'patch': self.patch_features[idx,:]}
+                # This variable is just for min and max calculation
+                encoded_spot_exp = spot_exp
+                
             # Set min and max values of the data split
             if encoded_spot_exp.min().item() < self.min_val:
                 self.min_val = encoded_spot_exp.min().item()
