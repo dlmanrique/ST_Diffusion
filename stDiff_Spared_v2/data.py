@@ -26,7 +26,7 @@ class TransformTensorDataset(torch.utils.data.Dataset):
 
 
 class stLDMDataset(torch.utils.data.Dataset):
-    def __init__(self, args, adata, original_adata, split_name, genes_autoencoder, image_encoder, image_transforms):
+    def __init__(self, args, adata, split_name, genes_autoencoder, image_encoder, image_transforms):
         """
         This is a spatial data class that contains all the information about the dataset. It will call a reader class depending on the type
         of dataset (by now only visium and STNet are supported). The reader class will download the data and read it into an AnnData collection
@@ -47,16 +47,14 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.split_name = split_name
         # Based on args, select the desired adata, original or 1024
         # If args.gene_autoencoder == None -> then the experiment doesn't involves 1024 adata
-        if self.args.gene_autoencoder:
-            self.adata = adata
-        else:
-            self.adata = original_adata
+        self.adata = adata
 
         self.model_autoencoder = genes_autoencoder
         self.image_encoder = image_encoder
         self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
         # Get original expression matrix based on selected prediction layer.
         self.expression_mtx = torch.tensor(self.adata.layers[self.pred_layer])
+        self.all_st_data_shape = self.expression_mtx.shape
         # Calculate patch_features
         self.calculate_patch_embeddings()
         
@@ -76,6 +74,7 @@ class stLDMDataset(torch.utils.data.Dataset):
             self.neighborhoods = self.build_neighborhoods()
             self.DiT_input_dim = self.neighborhoods['0']['encoded_exp_matrix'].squeeze().shape   # De aca tengo (7,128)     
             self.image_features_dim = self.neighborhoods['0']['patches'].shape[-1] # De aca tengo el 1024 para UNI
+            self.all_st_data_shape = [self.all_st_data_shape[0], self.DiT_input_dim[0], self.DiT_input_dim[1]]
 
         
         # Normalize data in every case
@@ -282,16 +281,20 @@ class SpaREDData():
 
         # Load datasets (1024-gene adata, and original SpaRED adata)
         self.load_data()
-        # Get average values for 1024-genes adata
+        # Get average values for 1024-genes adata or 128-genes adata
         # Always work with this layer
-        self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
+        if self.autoencoder:
+            self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
+        else:
+            self.average_vals = torch.tensor(self.original_full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
+
         # Set split data and create data modules
         self.setup()
-        self.train_data = stLDMDataset(self.args, self.spared_train, self.spared_train_original, "train",
+        self.train_data = stLDMDataset(self.args, self.spared_train,  "train",
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
-        self.val_data = stLDMDataset(self.args, self.spared_val, self.spared_val_original,"val", 
+        self.val_data = stLDMDataset(self.args, self.spared_val, "val", 
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
-        self.test_data = stLDMDataset(self.args, self.spared_test, self.spared_test_original, "test", 
+        self.test_data = stLDMDataset(self.args, self.spared_test, "test", 
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
         
 
@@ -315,9 +318,10 @@ class SpaREDData():
         self.spared_test = self.full_adata[self.full_adata.obs["split"]=="test"] if self.test_data_available else  self.full_adata[self.full_adata.obs["split"]=="val"]
 
         # Original adatas (128 genes)
-        self.spared_train_original = self.original_full_adata[self.original_full_adata.obs["split"]=="train"] 
-        self.spared_val_original = self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
-        self.spared_test_original = self.original_full_adata[self.original_full_adata.obs["split"]=="test"] if self.test_data_available else  self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
+        if self.args.gene_autoencoder is None:
+            self.spared_train = self.original_full_adata[self.original_full_adata.obs["split"]=="train"] 
+            self.spared_val = self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
+            self.spared_test = self.original_full_adata[self.original_full_adata.obs["split"]=="test"] if self.test_data_available else  self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
 
 
     def train_dataloader(self):

@@ -1,48 +1,36 @@
 import torch
 from tqdm import tqdm
 import numpy as np
-from utils import get_main_parser
-
-# Get parser and parse arguments
-parser = get_main_parser()
-args = parser.parse_args()
-args_dict = vars(args)
 
 #Seed
-seed = args.seed
+seed = 1202
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
-def model_sample_stDiff(model, device, dataloader, total_sample, time, is_condi, condi_flag):
+def model_sample_stDiff(model, device, dataloader, total_sample, time):
     noise = []
     i = 0
-    for _, x_cond in dataloader: 
+    for batch_data in dataloader: 
+        x_cond =  batch_data['patches']
         x_cond = x_cond.float().to(device) 
         t = torch.from_numpy(np.repeat(time, x_cond.shape[0])).long().to(device)
-        # celltype = celltype.to(device)
-        if not is_condi:
-            n = model(total_sample[i:i+len(x_cond)], t, None) 
-        else:
-            cond = [x_cond]
-            n = model(total_sample[i:i+len(x_cond)], t, cond, condi_flag=condi_flag) 
+        cond = [x_cond]
+        n = model(total_sample[i:i+len(x_cond)], t, cond) 
         noise.append(n)
         i = i+len(x_cond)
     noise = torch.cat(noise, dim=0)
     return noise
 
+
 def sample_stDiff(model,
                 dataloader,
                 noise_scheduler,
+                x_t_shape,
                 args,
                 device=torch.device('cuda:0'),
-                num_step=1000,
-                sample_shape=(7060, 2000),
-                is_condi=False,
-                sample_intermediate=200,
-                model_pred_type: str = 'noise',
-                omega=0.1):
-    #mask = None
+                num_step=1000):
+
     """_summary_
 
     Args:
@@ -63,13 +51,10 @@ def sample_stDiff(model,
     Returns:
         _type_: recon_x
     """
+    model.eval()
+    x_t = torch.randn(x_t_shape).to(device) # Ruido inicial al cual le voy quitando hasta llegar a mi st_data
+    timesteps = list(range(num_step))[::-1] # Lista de pasos reversos para hacer la inferencia (remocion de ruido)
     
-    x_t = torch.randn(sample_shape).to(device)
-    timesteps = list(range(num_step))[::-1]  
-    
-    if sample_intermediate:
-        timesteps = timesteps[:sample_intermediate]
-
     ts = tqdm(timesteps)
     for t_idx, time in enumerate(ts):
         ts.set_description_str(desc=f'time: {time}')
@@ -78,15 +63,12 @@ def sample_stDiff(model,
             model_output = model_sample_stDiff(model,
                                         device=device,
                                         dataloader=dataloader,
-                                        total_sample=x_t,  # x_t
-                                        time=time,  # t
-                                        is_condi=is_condi,
-                                        condi_flag=True)
+                                        total_sample=x_t, # x_t 
+                                        time=time)
             # x_t -> removemos el ruido predicho por el modelo
             x_t, _ = noise_scheduler.step(model_output,  # noise
                                             torch.from_numpy(np.array(time)).long().to(device),
-                                            x_t,
-                                            model_pred_type=args.loss_type)
+                                            x_t)
 
 
     recon_x = x_t.detach().cpu()

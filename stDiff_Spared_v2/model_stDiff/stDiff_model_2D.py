@@ -284,8 +284,8 @@ class DiT_stDiff(nn.Module):
         self.classes = classes
         self.mlp_ratio = mlp_ratio
         self.dit_type = dit_type
-        self.in_channels = self.input_size[1]
-        self.out_size = self.input_size[1]
+        self.in_channels = self.input_size[-1]
+        self.out_size = self.input_size[-1]
         self.images_features_dim = images_features_dim
 
         if args.concat_dim == 1:

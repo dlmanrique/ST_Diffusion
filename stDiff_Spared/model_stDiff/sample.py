@@ -63,7 +63,7 @@ def sample_stDiff(model,
     Returns:
         _type_: recon_x
     """
-    
+    breakpoint()
     x_t = torch.randn(sample_shape).to(device)
     timesteps = list(range(num_step))[::-1]  
     

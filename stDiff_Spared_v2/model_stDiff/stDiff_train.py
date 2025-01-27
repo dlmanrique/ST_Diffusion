@@ -64,8 +64,7 @@ def train_stDiff(model,
 
     model.to(device)
     model.train()
-    min_mse = np.inf
-    best_mse = 0
+    best_mse = np.inf
     best_pcc = 0
 
     #Define keys for spot or neighbors
@@ -146,35 +145,30 @@ def train_stDiff(model,
         if epoch % (args.num_epochs//2) == 0 and epoch != 0:
             model.eval()
             with torch.no_grad():
+                metrics_dict, imputation_data = inference_function(
+                                                data=data,
+                                                model=model,
+                                                diffusion_steps=args.train_diffusion_steps,
+                                                device=device,
+                                                args=args,
+                                                model_autoencoder=gene_autoencoder,
+                                                process="val"
+                                                )
 
-                metrics_dict_val, imputation_data_val = inference_function(dataloader=valid_dataloader,
-                                            gt_data=st_data_val, 
-                                            model=model,
-                                            max_norm = max_norm[1],
-                                            min_norm = min_norm[1],
-                                            avg_tensor = avg_tensor,
-                                            diffusion_step=args.diffusion_steps_train,
-                                            device=device,
-                                            args=args
-                                            )
+            # Compare MSE metrics and save best model
+            if metrics_dict["MSE"] < best_mse:
+                best_mse = metrics_dict["MSE"]
+                best_pcc = metrics_dict["PCC-Gene"]
+                best_model_path = os.path.join(save_path, f"ckpts_epoch_{epoch}.pt")
+                
+                torch.save(model.state_dict(), best_model_path)
 
-                adata_valid.layers["diff_pred"] = imputation_data_val
-                #log_pred_image_extreme_completion(adata_valid, args, epoch)
                 
             
-                
-                
-
-            if metrics_dict_val["MSE"] < min_mse:
-                min_mse = metrics_dict_val["MSE"]
-                best_mse = metrics_dict_val["MSE"]
-                best_pcc = metrics_dict_val["PCC-Gene"]
-                torch.save(model.state_dict(), os.path.join("Experiments", exp_name, save_path))
-            #save_metrics_to_csv(args.metrics_path, args.dataset, "valid", metrics_dict)
-            wandb_logger.log({"MSE_val": metrics_dict_val["MSE"], "PCC_val": metrics_dict_val["PCC-Gene"]})
-
-            model.train()
+            wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
 
     # Save the best MSE and best PCC on the validation set
     wandb_logger.log({"best_MSE_val":best_mse, "best_PCC_val": best_pcc})
+
+    return best_model_path
 

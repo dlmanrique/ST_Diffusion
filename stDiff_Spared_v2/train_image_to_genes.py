@@ -88,20 +88,47 @@ def main():
         
     else: 
         best_model_path = args.dit_ckpts_path
-        
+    
     # Load the best model after training
     model.load_state_dict(torch.load(best_model_path))
 
-    if args.test:
-        test_dict, test_imputation_data = inference_function(
-        data=spared_data,
-        model=model,
-        diffusion_steps=args.sample_diffusion_steps,
-        device=device,
-        args=args,
-        model_autoencoder=autoencoder,
-        process="test"
-        )
+    if args.test:  
+
+        #Inference in train and val to control overfitting
+        train_dict, _ = inference_function(
+                                        data=spared_data,
+                                        model=model,
+                                        diffusion_steps=args.sample_diffusion_steps,
+                                        device=device,
+                                        args=args,
+                                        model_autoencoder=gene_autoencoder_model,
+                                        process="train"
+                                        )
+        
+        valid_dict, _ = inference_function(
+                                        data=spared_data,
+                                        model=model,
+                                        diffusion_steps=args.sample_diffusion_steps,
+                                        device=device,
+                                        args=args,
+                                        model_autoencoder=gene_autoencoder_model,
+                                        process="valid"
+                                        )
+        
+        test_dict, test_pred_data = inference_function(
+                                                data=spared_data,
+                                                model=model,
+                                                diffusion_steps=args.sample_diffusion_steps,
+                                                device=device,
+                                                args=args,
+                                                model_autoencoder=gene_autoencoder_model,
+                                                process="test"
+                                                )
+        
+        #TODO: add plots for predicted data
+        wandb.log({"Test_MSE_train": train_dict["MSE"], "Test_PCC_train": train_dict["PCC-Gene"]})
+        wandb.log({"Test_MSE_valid": valid_dict["MSE"], "Test_PCC_valid": valid_dict["PCC-Gene"]})
+        wandb.log({"Test_MSE_test": test_dict["MSE"], "Test_PCC_test": test_dict["PCC-Gene"]})
 
 
 if __name__=='__main__':
