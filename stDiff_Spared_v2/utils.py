@@ -34,7 +34,7 @@ def get_main_parser():
     parser.add_argument('--batch_size',                     type=int,               default=256,                             help='Batch size used to train the diffusion model.')
     parser.add_argument('--num_epochs',                     type=int,               default=3000,                            help='Number of training epochs.')
     parser.add_argument('--train_diffusion_steps',          type=int,               default=1500,                            help='Number of diffusion steps for training process.')
-    parser.add_argument('--sample_diffusion_steps',         type=int,               default=1500,                            help='Number of diffusion steps for val or test process.')
+    parser.add_argument('--sample_diffusion_steps',         type=int,               default=50,                            help='Number of diffusion steps for val or test process.')
     parser.add_argument('--step_size',                      type=float,             default=600,                             help='Step size to use in learning rate scheduler')
     parser.add_argument("--adjust_loss",                    type=str2bool,          default=True,                            help='If True the loss is obtained only on masked data. If False the loss takes into account the entire set of genes and spots.')
     parser.add_argument("--scheduler",                      type=str2bool,          default=True,                            help='Whether to use LR scheduler or not.')
@@ -126,13 +126,16 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         min_norm, max_norm = data.val_data.min_val, data.val_data.max_val
         c_t_log1p_data = torch.tensor(data.spared_val.layers["c_t_log1p"])
         xt_shape = data.val_data.all_st_data_shape
-
-    else: # process is "test"
+    elif process == "test":
         dataloader = data.test_dataloader()
         min_norm, max_norm = data.test_data.min_val, data.test_data.max_val
         c_t_log1p_data = torch.tensor(data.spared_test.layers["c_t_log1p"])
         xt_shape = data.test_data.all_st_data_shape
-
+    else: # predict on all data
+        dataloader = data.all_dataloader()
+        min_norm, max_norm = data.all_data.min_val, data.all_data.max_val
+        c_t_log1p_data = torch.tensor(data.spared_all.layers["c_t_log1p"])
+        xt_shape = data.all_data.all_st_data_shape
 
     # inference using test split
     imputation = sample_stDiff(model,

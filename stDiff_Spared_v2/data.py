@@ -296,6 +296,8 @@ class SpaREDData():
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
         self.test_data = stLDMDataset(self.args, self.spared_test, "test", 
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
+        self.all_data = stLDMDataset(self.args, self.spared_all, "all",
+                                        self.autoencoder, self.image_encoder_model, self.image_transforms)
         
 
     def load_data(self):
@@ -316,13 +318,14 @@ class SpaREDData():
         self.spared_train = self.full_adata[self.full_adata.obs["split"]=="train"] 
         self.spared_val = self.full_adata[self.full_adata.obs["split"]=="val"]
         self.spared_test = self.full_adata[self.full_adata.obs["split"]=="test"] if self.test_data_available else  self.full_adata[self.full_adata.obs["split"]=="val"]
+        self.spared_all = self.full_adata
 
         # Original adatas (128 genes)
         if self.args.gene_autoencoder is None:
             self.spared_train = self.original_full_adata[self.original_full_adata.obs["split"]=="train"] 
             self.spared_val = self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
             self.spared_test = self.original_full_adata[self.original_full_adata.obs["split"]=="test"] if self.test_data_available else  self.original_full_adata[self.original_full_adata.obs["split"]=="val"]
-
+            self.spared_all = self.original_full_adata
 
     def train_dataloader(self):
         # item is a dictionary with keys ['spot_id', 'exp_matrix', 'exp_mask', 'encoded_exp_matrix', 'condition_matrix', 'condition_mask']
@@ -335,5 +338,8 @@ class SpaREDData():
 
     def test_dataloader(self):
         return DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False, drop_last=False) #, num_workers=self.num_workers)
+
+    def all_dataloader(self):
+        return DataLoader(self.all_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
     
 
