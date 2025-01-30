@@ -22,7 +22,7 @@ def main():
         wandb.init(project='debbugs_v2', entity = 'spared_v2', config=vars(args), name=exp_name + '_debbug')
 
     else:
-        wandb.init(project='Image_to_Genes', entity = 'spared_v2', config=vars(args), name=exp_name + '_debbug')
+        wandb.init(project='Image_to_Genes', entity = 'spared_v2', config=vars(args), name=exp_name)
     
     #Save path
     save_path = os.path.join("Experiments", args.dataset, exp_name)
@@ -69,8 +69,6 @@ def main():
         dit_type='dit')
         
     model.to(device)
-    #TODO: change this model name
-    #save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
 
 
     if args.train:
