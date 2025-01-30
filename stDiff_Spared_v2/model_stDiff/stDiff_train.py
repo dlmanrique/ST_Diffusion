@@ -141,8 +141,7 @@ def train_stDiff(model,
             session.report({'loss': epoch_loss})
         
         # compare MSE metrics and save best model
-        #FIXME: cambiar esto por el 10 original
-        if epoch % (args.num_epochs//2) == 0 and epoch != 0:
+        if epoch % (args.num_epochs//10) == 0 and epoch != 0:
             model.eval()
             with torch.no_grad():
                 metrics_dict, imputation_data = inference_function(
