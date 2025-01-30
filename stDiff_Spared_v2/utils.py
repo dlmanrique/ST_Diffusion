@@ -126,13 +126,16 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         min_norm, max_norm = data.val_data.min_val, data.val_data.max_val
         c_t_log1p_data = torch.tensor(data.spared_val.layers["c_t_log1p"])
         xt_shape = data.val_data.all_st_data_shape
-
-    else: # process is "test"
+    elif process == "test":
         dataloader = data.test_dataloader()
         min_norm, max_norm = data.test_data.min_val, data.test_data.max_val
         c_t_log1p_data = torch.tensor(data.spared_test.layers["c_t_log1p"])
         xt_shape = data.test_data.all_st_data_shape
-
+    else: # predict on all data
+        dataloader = data.all_dataloader()
+        min_norm, max_norm = data.all_data.min_val, data.all_data.max_val
+        c_t_log1p_data = torch.tensor(data.spared_all.layers["c_t_log1p"])
+        xt_shape = data.all_data.all_st_data_shape
 
     # inference using test split
     imputation = sample_stDiff(model,

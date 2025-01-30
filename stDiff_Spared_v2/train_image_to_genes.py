@@ -8,6 +8,7 @@ from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import train_stDiff
 from utils import *
 from data import SpaREDData
+from visualizations import visualize_predictions
 
 import wandb
 from datetime import datetime
@@ -94,40 +95,53 @@ def main():
 
         #Inference in train and val to control overfitting
         train_dict, _ = inference_function(
-                                        data=spared_data,
-                                        model=model,
-                                        diffusion_steps=args.sample_diffusion_steps,
-                                        device=device,
-                                        args=args,
-                                        model_autoencoder=gene_autoencoder_model,
-                                        process="train"
-                                        )
+                                data=spared_data,
+                                model=model,
+                                diffusion_steps=args.sample_diffusion_steps,
+                                device=device,
+                                args=args,
+                                model_autoencoder=gene_autoencoder_model,
+                                process="train"
+                                )
         
         valid_dict, _ = inference_function(
-                                        data=spared_data,
-                                        model=model,
-                                        diffusion_steps=args.sample_diffusion_steps,
-                                        device=device,
-                                        args=args,
-                                        model_autoencoder=gene_autoencoder_model,
-                                        process="valid"
-                                        )
+                                data=spared_data,
+                                model=model,
+                                diffusion_steps=args.sample_diffusion_steps,
+                                device=device,
+                                args=args,
+                                model_autoencoder=gene_autoencoder_model,
+                                process="valid"
+                                )
         
-        test_dict, test_pred_data = inference_function(
-                                                data=spared_data,
-                                                model=model,
-                                                diffusion_steps=args.sample_diffusion_steps,
-                                                device=device,
-                                                args=args,
-                                                model_autoencoder=gene_autoencoder_model,
-                                                process="test"
-                                                )
-        
-        #TODO: add plots for predicted data
+        test_dict, _ = inference_function(
+                                data=spared_data,
+                                model=model,
+                                diffusion_steps=args.sample_diffusion_steps,
+                                device=device,
+                                args=args,
+                                model_autoencoder=gene_autoencoder_model,
+                                process="test"
+                                )
+
+        # Log the test results in wandb
         wandb.log({"Test_MSE_train": train_dict["MSE"], "Test_PCC_train": train_dict["PCC-Gene"]})
         wandb.log({"Test_MSE_valid": valid_dict["MSE"], "Test_PCC_valid": valid_dict["PCC-Gene"]})
         wandb.log({"Test_MSE_test": test_dict["MSE"], "Test_PCC_test": test_dict["PCC-Gene"]})
 
+        # Get the predicted data
+        metrics, pred_data = inference_function(
+                                data=spared_data,
+                                model=model,
+                                diffusion_steps=args.sample_diffusion_steps,
+                                device=device,
+                                args=args,
+                                model_autoencoder=gene_autoencoder_model,
+                                process="all"
+                                )
+
+        #Visualization plots for predicted data
+        visualize_predictions(args.dataset, spared_data.spared_all, pred_data, exp_name)
 
 if __name__=='__main__':
 
