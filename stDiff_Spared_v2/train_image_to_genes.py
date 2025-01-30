@@ -131,8 +131,10 @@ def main():
         wandb.log({"Test_MSE_valid": valid_dict["MSE"], "Test_PCC_valid": valid_dict["PCC-Gene"]})
         wandb.log({"Test_MSE_test": test_dict["MSE"], "Test_PCC_test": test_dict["PCC-Gene"]})
 
+    if args.visualizations:
+        
         # Get the predicted data
-        metrics, pred_data = inference_function(
+        all_dict, pred_data = inference_function(
                                 data=spared_data,
                                 model=model,
                                 diffusion_steps=args.sample_diffusion_steps,
