@@ -51,7 +51,8 @@ class stLDMDataset(torch.utils.data.Dataset):
 
         self.model_autoencoder = genes_autoencoder
         self.image_encoder = image_encoder
-        if image_encoder == 'uni':
+
+        if args.image_encoder == 'uni':
             self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
         else:
             self.image_transforms = image_transforms
@@ -62,7 +63,7 @@ class stLDMDataset(torch.utils.data.Dataset):
         # Calculate patch_features
         self.calculate_patch_embeddings()
         #Normalize patch_feature in a range (-1,1) 
-        #self.normalize_image_features()
+        self.normalize_image_features()
         # Build and save each spot's neighborhood, and the min and max val of the data split
         self.min_val, self.max_val = np.inf, -np.inf 
         
