@@ -393,7 +393,6 @@ class DiT_stDiff(nn.Module):
         
         # Caso de no usar vecinos
         else:
-            breakpoint()
             x = self.in_layer(x) # x.shape (batch, n_genes or latent dimension) -> (batch, hidden_size) 
             t = self.time_emb(t) # t.shape (batch) -> (batch, hidden_size)
             y = self.cond_layer(y[0]) # shape (batch, UNI features dim) -> (batch, hidden_size)

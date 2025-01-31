@@ -76,13 +76,13 @@ def train_stDiff(model,
         # Neighbors matrix type
         original_st_data_key = 'exp_matrix'
         encoded_st_data_key = 'encoded_exp_matrix'
-    
+
+
     for epoch in t_epoch:
         epoch_loss = 0.
         for i, (batch_data) in enumerate(data.train_dataloader()): 
             # En este caso x son los vectores de expresion encodeados u originales
             # x_cond es el vector de features de parches
-
             # Tomamos los datos encodeados si se quiere, sino pues tomamos los datos de st crudos
             if args.gene_autoencoder:
                 # Como tengo gene autoencoder, tomo como 'x' los vectores de st encoded
@@ -151,6 +151,7 @@ def train_stDiff(model,
                                                 device=device,
                                                 args=args,
                                                 model_autoencoder=gene_autoencoder,
+                                                wandb_logger=wandb_logger,
                                                 process="val"
                                                 )
 

@@ -23,7 +23,7 @@ class ImageEncoder():
             encoder_class =  ShuffenetEncoder(model_weights_path)
             
         else:
-            raise ValueError('The gene encoder not exist')
+            raise ValueError('The image encoder not exist')
 
         patch_encoder_model, transforms = encoder_class.get_encoder()
 
@@ -43,7 +43,7 @@ class GeneAutoencoder():
 
     def get_gene_autoencoder(self, configs: dict):
         #TODO: if I have more than one option, add the if statements to support that case.
-        if self.name == "Transformer_encoder_mlp_decoder":
+        if self.name == "Transformer_encoder_mlp_decoder_v1":
             from Latents.Gene_Autoencoders.gene_autoencoder import Transformer_encoder_mlp_decoder
             autoencoder =  Transformer_encoder_mlp_decoder(input_dim = configs['input_dim'], 
                                             latent_dim = configs['latent_dim'],

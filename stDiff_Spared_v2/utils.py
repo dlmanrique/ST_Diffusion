@@ -64,23 +64,16 @@ def data_normalization(data: torch.tensor, data_min, data_max):
     denorm_data = (norm_data + 1) / 2 * (data_max - data_min) + data_min
     return denorm_data'''
 
-def denormalize_from_minus_one_to_one(X_norm, X_max, X_min):
+def denormalize_from_minus_one_to_one(X_norm, X_min, X_max):
     # Apply the denormalization formula 
     X_denorm = ((X_norm + 1) / 2) * (X_max - X_min) + X_min
     return X_denorm
 
 
-def decode(imputation, model_decoder, decode_as_matrix=False):
-    #TODO: poner condicionales pa saber si es matriz, spot o matriz pero como si fuera spot
-    breakpoint()
-
-    if not decode_as_matrix:
-        imputation = torch.tensor(imputation[:,:,0], dtype=torch.float32) # shape torch.Size([439, 128])
-    else: 
-        imputation = imputation.permute(0,2,1)
-
+def decode(imputation, model_decoder):
+    imputation = torch.tensor(imputation.permute(0,2,1), dtype=torch.float32)[:,:,0] # shape torch.Size([439, 128])
     dataset = TensorDataset(imputation)
-    dataloader = DataLoader(dataset, batch_size=128, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=512, shuffle=False)
     
     model_decoder.to("cuda")
     model_decoder.eval()  
@@ -98,7 +91,8 @@ def decode(imputation, model_decoder, decode_as_matrix=False):
 
 
 
-def inference_function(data, model, diffusion_steps, device, args, model_autoencoder, process = "val"):
+
+def inference_function(data, model, diffusion_steps, device, args, model_autoencoder, wandb_logger, process = "val"):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
     from model_stDiff.sample import sample_stDiff
@@ -143,6 +137,7 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         c_t_log1p_data = torch.tensor(data.spared_all.layers["c_t_log1p"])
         xt_shape = data.all_data.all_st_data_shape
 
+
     # inference using test split
     imputation = sample_stDiff(model,
                         dataloader=dataloader,
@@ -151,28 +146,76 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
                         args=args,
                         device=device,
                         num_step=diffusion_steps)
-    
-    imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
 
+    imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
+    
+    
+    
     if args.gene_autoencoder:
+
+        if args.num_neighs == -1:
+            # Spot type
+            encoded_st_data_key = 'encoded_spot_exp'
+        else:
+            # Neighbors matrix type
+            encoded_st_data_key = 'encoded_exp_matrix'
+
+       # Get all ground truths
+        ground_truth = []
+        # Iterate entire dataloader to get complete tensor of masks and x_conds
+        test_mask = []
+
+        for batch in dataloader:
+            try:
+                ground_truth.append(batch[encoded_st_data_key].permute(0,2,1))
+                test_mask.append(batch["exp_mask"].permute(0,2,1))
+            except:
+                ground_truth.append(batch[encoded_st_data_key])
+                test_mask.append(batch["exp_mask"].squeeze())
+
+        ground_truth = torch.cat(ground_truth, dim=0)
+        ground_truth = denormalize_from_minus_one_to_one(ground_truth, min_norm, max_norm)
+
+        test_mask = torch.cat(test_mask, dim=0)
+
         # Check how much do minor perturbations in the model's prediction affect the output of the decoder
         imputation = torch.tensor(imputation) 
         perturbation = torch.randn_like(imputation) * 0.01
         
-        decoded_imputation = decode(imputation=imputation, model_decoder=model_autoencoder)
-        decoded_perturbation = decode(imputation=perturbation, model_decoder=model_autoencoder)
-        
+        if len(ground_truth.shape) < 3:
+            #Encoded spots model
+            decoded_imputation = decode(imputation=imputation.unsqueeze(dim=1), model_decoder=model_autoencoder)
+            decoded_perturbation = decode(imputation=perturbation.unsqueeze(dim=1), model_decoder=model_autoencoder)
+            dit_imputation = torch.tensor(imputation.unsqueeze(dim=1), dtype=torch.float32)[:,0,:]
+            dit_gt = torch.tensor(ground_truth.unsqueeze(dim=1), dtype=torch.float32)[:,0,:]
+        else:
+            decoded_imputation = decode(imputation=imputation, model_decoder=model_autoencoder)
+            decoded_perturbation = decode(imputation=perturbation, model_decoder=model_autoencoder)
+            dit_imputation = torch.tensor(imputation, dtype=torch.float32)[:,:,0]
+            dit_gt = torch.tensor(ground_truth, dtype=torch.float32)[:,:,0]
+
         mse_pre = F.mse_loss(imputation, perturbation)
         print("MSE pred vs perturbed-pred before decoding: ", mse_pre)
         mse_post = F.mse_loss(decoded_imputation, decoded_perturbation)
         print("MSE pred vs perturbed-pred after decoding: ", mse_post)
+        
+        dit_mse = F.mse_loss(dit_gt.to('cuda'), dit_imputation.to('cuda'))
+        print("mse del dit (encoded pred vs encoded gt): ", dit_mse.item()) # MSE de predicciÃ³n vs gt pero antes de decodear 
+        wandb_logger.log({"encoded_pred_MSE": dit_mse})
+
+        imputation = decode(imputation=imputation.unsqueeze(dim=1), model_decoder=model_autoencoder)
 
 
     imputation = imputation.detach().cpu() # Sigo en c_t_deltas
+
+    #Evaluate only on main spot of each sample
+    mask_boolean = test_mask
     
     if len(imputation.shape) == 3:
         #Evaluate only on spot central
         imputation = imputation[:,0,:]
+        mask_boolean = test_mask[:,:,0]
+
 
     if "deltas" in args.pred_layer:
         imputation_tensor = imputation + data.average_vals.cpu()
@@ -180,7 +223,6 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
 
     imputation_tensor = torch.tensor(imputation_tensor, dtype=torch.float32)
 
-    evaluation_mask = torch.ones(imputation_tensor.shape, dtype=torch.bool)
-    metrics_dict = get_metrics(c_t_log1p_data, imputation_tensor, evaluation_mask) 
+    metrics_dict = get_metrics(c_t_log1p_data, imputation_tensor, mask_boolean) 
     
     return metrics_dict, imputation_tensor
