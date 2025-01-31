@@ -1,9 +1,10 @@
 import torch
-
+import os
 
 class ImageEncoder():
-    def __init__(self, name):
+    def __init__(self, name, dataset):
         self.encoder_name = name
+        self.dataset = dataset
     
     def get_patch_encoder_model(self):
         """
@@ -14,8 +15,15 @@ class ImageEncoder():
             from Latents.Images_encoders.uni import UniEncoder
             encoder_class =  UniEncoder()
 
+        elif self.encoder_name == 'shufflenet':
+            #Debo buscar a partir del name los pesos del modelo
+            from Latents.Images_encoders.shuffenet import ShuffenetEncoder 
+            
+            model_weights_path = os.path.join('Pretrained_Encoders_Autoencoders', 'Images_encoders', self.encoder_name, self.dataset, 'image_encoder.ckpt')
+            encoder_class =  ShuffenetEncoder(model_weights_path)
+            
         else:
-            raise ValueError('The gene encoder not exist')
+            raise ValueError('The image encoder not exist')
 
         patch_encoder_model, transforms = encoder_class.get_encoder()
 
@@ -35,7 +43,7 @@ class GeneAutoencoder():
 
     def get_gene_autoencoder(self, configs: dict):
         #TODO: if I have more than one option, add the if statements to support that case.
-        if self.name == "Transformer_encoder_mlp_decoder":
+        if self.name == "Transformer_encoder_mlp_decoder_v1":
             from Latents.Gene_Autoencoders.gene_autoencoder import Transformer_encoder_mlp_decoder
             autoencoder =  Transformer_encoder_mlp_decoder(input_dim = configs['input_dim'], 
                                             latent_dim = configs['latent_dim'],

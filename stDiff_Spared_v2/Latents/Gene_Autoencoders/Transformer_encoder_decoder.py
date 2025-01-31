@@ -8,7 +8,7 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.encoder_projection = nn.Sequential(
             nn.Linear(input_dim, embedding_dim),
-            nn.ReLU())
+            nn.Tanh())
 
         self.positional_encoding = PositionalEncoding(embedding_dim)
         #self.positional_encoding = nn.Parameter(torch.randn(1, 7, embedding_dim))
@@ -25,7 +25,7 @@ class TransformerEncoder(nn.Module):
         self.to_latent = nn.Sequential(
             nn.LayerNorm(embedding_dim),
             nn.Linear(embedding_dim, latent_dim),
-            nn.ReLU(),
+            nn.Tanh(),
         )
         
     def forward(self, x):
@@ -47,7 +47,7 @@ class TransformerDecoder(nn.Module):
  
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, embedding_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Dropout(dropout),
             nn.Linear(embedding_dim, input_dim)
         )

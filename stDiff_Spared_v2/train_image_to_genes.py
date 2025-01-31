@@ -31,7 +31,7 @@ def main():
 
     # Load Image encoder (patch encoder)
     # Load the class 
-    image_encoder = ImageEncoder(args.image_encoder)
+    image_encoder = ImageEncoder(args.image_encoder, args.dataset)
     # Get the model weights of the patch encoder
     image_encoder_model, transforms = image_encoder.get_patch_encoder_model()
 
@@ -101,6 +101,7 @@ def main():
                                 device=device,
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
+                                wandb_logger=wandb,
                                 process="train"
                                 )
         
@@ -111,6 +112,7 @@ def main():
                                 device=device,
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
+                                wandb_logger=wandb,
                                 process="valid"
                                 )
         
@@ -121,6 +123,7 @@ def main():
                                 device=device,
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
+                                wandb_logger=wandb,
                                 process="test"
                                 )
 
@@ -139,6 +142,7 @@ def main():
                                 device=device,
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
+                                wandb_logger=wandb,
                                 process="all"
                                 )
 
