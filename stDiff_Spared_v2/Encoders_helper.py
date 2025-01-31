@@ -1,9 +1,10 @@
 import torch
-
+import os
 
 class ImageEncoder():
-    def __init__(self, name):
+    def __init__(self, name, dataset):
         self.encoder_name = name
+        self.dataset = dataset
     
     def get_patch_encoder_model(self):
         """
@@ -14,6 +15,13 @@ class ImageEncoder():
             from Latents.Images_encoders.uni import UniEncoder
             encoder_class =  UniEncoder()
 
+        elif self.encoder_name == 'shufflenet':
+            #Debo buscar a partir del name los pesos del modelo
+            from Latents.Images_encoders.shuffenet import ShuffenetEncoder 
+            
+            model_weights_path = os.path.join('Pretrained_Encoders_Autoencoders', 'Images_encoders', self.encoder_name, self.dataset, 'image_encoder.ckpt')
+            encoder_class =  ShuffenetEncoder(model_weights_path)
+            
         else:
             raise ValueError('The gene encoder not exist')
 

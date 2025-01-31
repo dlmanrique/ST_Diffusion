@@ -51,23 +51,28 @@ class stLDMDataset(torch.utils.data.Dataset):
 
         self.model_autoencoder = genes_autoencoder
         self.image_encoder = image_encoder
-        self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
+        if image_encoder == 'uni':
+            self.image_transforms = transforms.Compose(image_transforms.transforms[-2:])
+        else:
+            self.image_transforms = image_transforms
+
         # Get original expression matrix based on selected prediction layer.
         self.expression_mtx = torch.tensor(self.adata.layers[self.pred_layer])
         self.all_st_data_shape = self.expression_mtx.shape
         # Calculate patch_features
         self.calculate_patch_embeddings()
-        
+        #Normalize patch_feature in a range (-1,1) 
+        #self.normalize_image_features()
         # Build and save each spot's neighborhood, and the min and max val of the data split
         self.min_val, self.max_val = np.inf, -np.inf 
         
         if args.num_neighs == -1:
-            print(f'Construct dataloader by spots using {self.args.gene_autoencoder} and {self.args.image_encoder}')
+            print(f'Construct {self.split_name} dataloader by spots using gene autoencoder: {self.args.gene_autoencoder} and  image encoder: {self.args.image_encoder}')
             self.spot_data = self.build_spot_data()
             self.DiT_input_dim = self.spot_data['0']['encoded_spot_exp'].shape # De aca tengo (128)
             self.image_features_dim = self.spot_data['0']['patches'].shape[0] # De aca tengo el 1024 de UNI
         else:
-            print(f'Construct dataloader by matrix using {self.args.gene_autoencoder} and {self.args.image_encoder}')
+            print(f'Construct {self.split_name} dataloader by matrix using gene autoencoder: {self.args.gene_autoencoder} and image encoder: {self.args.image_encoder}')
             # Process to get neighboors
             self.adj_mat = None
             self.get_adjacency(self.args.num_neighs)
@@ -111,13 +116,13 @@ class stLDMDataset(torch.utils.data.Dataset):
             print(f"Calculating image features for {self.args.dataset}/{self.split_name} using {self.args.image_encoder} model")          
             flat_patches = self.adata.obsm[f'patches_scale_1.0']
             patches = flat_patches.reshape((-1, 224, 224, 3))
-            patches = np.array(patches)
+            patches = np.array(patches) / 255
             patches_dataset = TransformTensorDataset(patches, self.image_transforms)
-
-            dataloader = DataLoader(patches_dataset, batch_size=256, shuffle=False)
+            dataloader = DataLoader(patches_dataset, batch_size=512, shuffle=False)
             patch_features = []
+
             for batch in tqdm(dataloader):
-                batch = batch.to('cuda')                                  
+                batch = batch.to('cuda').float()                                  
                 batch_output = self.image_encoder(batch)    
                 patch_features.append(batch_output)
 
@@ -240,7 +245,9 @@ class stLDMDataset(torch.utils.data.Dataset):
                 encoded_exp_spot = self.spot_data[spot_idx][encoded_data_key]
                 self.spot_data[spot_idx][encoded_data_key] = data_normalization(encoded_exp_spot, self.min_val, self.max_val) 
 
-
+    def normalize_image_features(self):
+        features = self.patch_features
+        self.patch_features = data_normalization(features, features.min(), features.max())
 
 
     def __getitem__(self, idx):
