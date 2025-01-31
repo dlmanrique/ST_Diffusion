@@ -56,13 +56,18 @@ def data_normalization(data: torch.tensor, data_min, data_max):
     
     return norm_data
 
-def data_denormalization(norm_data: torch.tensor, data_min: torch.tensor, data_max: torch.tensor):
+'''def data_denormalization(norm_data: torch.tensor, data_min: torch.tensor, data_max: torch.tensor):
     """
     This function receives a normalized gene expression matrix and denormalizes its content 
     back to the original range using the provided data_min and data_max.
     """
     denorm_data = (norm_data + 1) / 2 * (data_max - data_min) + data_min
-    return denorm_data
+    return denorm_data'''
+
+def denormalize_from_minus_one_to_one(X_norm, X_max, X_min):
+    # Apply the denormalization formula 
+    X_denorm = ((X_norm + 1) / 2) * (X_max - X_min) + X_min
+    return X_denorm
 
 
 def decode(imputation, model_decoder, decode_as_matrix=False):
@@ -147,7 +152,7 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
                         device=device,
                         num_step=diffusion_steps)
     
-    imputation = data_denormalization(imputation, min_norm, max_norm)
+    imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
 
     if args.gene_autoencoder:
         # Check how much do minor perturbations in the model's prediction affect the output of the decoder
