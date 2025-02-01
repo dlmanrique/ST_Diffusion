@@ -16,8 +16,6 @@ def get_main_parser():
     parser.add_argument('--dataset',                        type=str,               default='villacampa_lung_organoid',      help='Dataset to use.')
     parser.add_argument('--pred_layer',                     type=str,               default='c_t_deltas',                    help='SpaRED prediction layer to use.')
     parser.add_argument('--num_neighs',                     type=int,               default=6,                               help='Amount of neighbors considered to build spot neighborhoods. Must be the same as the ones used to train the autoencoder. Use -1 to avoid neighbors info')
-    parser.add_argument('--normalize_input',                type=str2bool,          default=True,                            help='Whether or not to normalize the DiT input data (encoded matrix) between -1 and 1 when preparing dataloader.')
-    parser.add_argument('--decode_as_matrix',               type=str2bool,          default=True,                            help='Whether or not the decoder receives 2D inputs.')
     # Model parameters #######################################################################################################################################################################
     parser.add_argument('--dit_hidden_size',                type=int,               default=1024,                            help='')
     parser.add_argument('--dit_depth',                      type=int,               default=12,                              help='')
@@ -28,8 +26,6 @@ def get_main_parser():
     parser.add_argument('--train',                          type=str2bool,          default=True,                            help='Train model.')
     parser.add_argument('--test',                           type=str2bool,          default=True,                            help='Test model.')
     parser.add_argument('--visualizations',                 type=str2bool,          default=False,                           help='Whether or not to visualize the results.')
-    parser.add_argument('--test_ckpts_path',                type=str,               default='',                              help='Path to checkpoints to be testing.')
-    parser.add_argument('--normalized_data',                type=str2bool,          default=False,                           help='Whether or not to work with normalized expression matrix.')
     parser.add_argument('--lr',                             type=float,             default=0.0001,                          help='lr to train DiT.')
     parser.add_argument('--batch_size',                     type=int,               default=256,                             help='Batch size used to train the diffusion model.')
     parser.add_argument('--num_epochs',                     type=int,               default=3000,                            help='Number of training epochs.')
@@ -87,9 +83,6 @@ def decode(imputation, model_decoder):
     return decoded_samples
 
 
-
-
-
 def inference_function(data, model, diffusion_steps, device, args, model_autoencoder, wandb_logger, process = "val"):
     # To avoid circular imports
     from model_stDiff.stDiff_scheduler import NoiseScheduler
@@ -114,27 +107,27 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         beta_schedule='cosine'
     )
     
+    # Remember that if pred_layer is based on delta values, the layer ised for testing will change to c_XX_log1p (XX denotes the completion method also used in pred_layer).
     if process == "train":
         dataloader = data.train_dataloader()
         min_norm, max_norm = data.train_data.min_val, data.train_data.max_val
-        c_t_log1p_data = torch.tensor(data.spared_train.layers["c_t_log1p"])
+        log1p_data = torch.tensor(data.spared_train.layers[data.layer_for_test])
         xt_shape = data.train_data.all_st_data_shape
     elif process == "val":
         dataloader = data.val_dataloader()
         min_norm, max_norm = data.val_data.min_val, data.val_data.max_val
-        c_t_log1p_data = torch.tensor(data.spared_val.layers["c_t_log1p"])
+        log1p_data = torch.tensor(data.spared_val.layers[data.layer_for_test])
         xt_shape = data.val_data.all_st_data_shape
     elif process == "test":
         dataloader = data.test_dataloader()
         min_norm, max_norm = data.test_data.min_val, data.test_data.max_val
-        c_t_log1p_data = torch.tensor(data.spared_test.layers["c_t_log1p"])
+        log1p_data = torch.tensor(data.spared_test.layers[data.layer_for_test])
         xt_shape = data.test_data.all_st_data_shape
     else: # predict on all data
         dataloader = data.all_dataloader()
         min_norm, max_norm = data.all_data.min_val, data.all_data.max_val
-        c_t_log1p_data = torch.tensor(data.spared_all.layers["c_t_log1p"])
+        log1p_data = torch.tensor(data.spared_all.layers[data.layer_for_test])
         xt_shape = data.all_data.all_st_data_shape
-
 
     # inference using test split
     imputation = sample_stDiff(model,
@@ -143,14 +136,11 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
                         x_t_shape=xt_shape,
                         args=args,
                         device=device,
-                        num_step=diffusion_steps)
+                        num_step=diffusion_steps) # output shape total_samples x 128
 
     imputation = denormalize_from_minus_one_to_one(imputation, min_norm, max_norm)
-    
-    
-    
+        
     if args.gene_autoencoder:
-
         if args.num_neighs == -1:
             # Spot type
             encoded_st_data_key = 'encoded_spot_exp'
@@ -201,23 +191,20 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         print("mse del dit (encoded pred vs encoded gt): ", dit_mse.item()) # MSE between gt and prediction before decoding.
         wandb_logger.log({"encoded_pred_MSE": dit_mse})
 
-        imputation = decode(imputation=imputation, model_decoder=model_autoencoder)
-
-
-    imputation = imputation.detach().cpu() # Sigo en c_t_deltas
+    decoded_imputation = decoded_imputation.detach().cpu() # Sigo en c_t_deltas
     
-    if len(imputation.shape) == 3:
+    if len(decoded_imputation.shape) == 3:
         #Evaluate only on main spot
-        imputation = imputation[:,0,:]
+        decoded_imputation = decoded_imputation[:,0,:]
     if len(test_mask.shape) == 3:
         test_mask = test_mask[:,:,0]
 
     if "deltas" in args.pred_layer:
-        imputation_tensor = imputation + data.average_vals.cpu()
+        imputation_tensor = decoded_imputation + data.average_vals.cpu()
         imputation_tensor = np.array(imputation_tensor) 
 
     imputation_tensor = torch.tensor(imputation_tensor, dtype=torch.float32)
 
-    metrics_dict = get_metrics(c_t_log1p_data, imputation_tensor.to(device), test_mask) 
+    metrics_dict = get_metrics(log1p_data, imputation_tensor.to(device), test_mask) 
     
     return metrics_dict, imputation_tensor

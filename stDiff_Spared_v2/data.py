@@ -329,12 +329,15 @@ class SpaREDData():
         # Sort genes in adatas
         self.sort_adatas()
 
-        # Get average values for 1024-genes adata or 128-genes adata
+        # Get average values for 1024-genes adata or 128-genes adata if pred layer is based on deltas
         # Always work with this layer
-        if self.autoencoder:
-            self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
-        else:
-            self.average_vals = torch.tensor(self.original_full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
+        self.layer_for_test = args.pred_layer
+        if "deltas" in args.pred_layer:
+            self.layer_for_test = args.pred_layer.rsplit("_", 1)[0] + "_log1p"
+            if self.autoencoder:
+                self.average_vals = torch.tensor(self.full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
+            else:
+                self.average_vals = torch.tensor(self.original_full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
 
         # Set split data and create data modules
         self.setup()
