@@ -185,19 +185,19 @@ class stLDMDataset(torch.utils.data.Dataset):
                     
                 # Get median imputation mask for idx spot and its nn
                 spot_mask = self.great_mask[idx].unsqueeze(dim=0) #size 1xgenes(1024)
-                nn_mask = self.great_mask[self.adj_mat[:,idx]==1.] #size 6xgenes(1024)
+                nn_mask = self.great_mask[self.adj_mat[idx,:]==1.] #size 6xgenes(1024)
                 great_mask = torch.cat((spot_mask, nn_mask), dim=0)
 
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
-                                            "exp_matrix": exp_matrix, 
+                                            "exp_matrix": exp_matrix.squeeze(0), 
                                             "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
-                                            'patches': self.patch_features[nn_indices,:],
+                                            "patches": self.patch_features[nn_indices,:].detach().cpu(),
                                             "exp_mask": great_mask}
             else:
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
                                             "exp_matrix": exp_matrix.squeeze(), 
-                                            "encoded_exp_matrix": exp_matrix,
-                                            'patches': self.patch_features[nn_indices,:]}
+                                            "encoded_exp_matrix": exp_matrix.squeeze(),
+                                            "patches": self.patch_features[nn_indices,:].detach().cpu()}
 
                 # This variable is just for min and max calculation
                 encoded_exp_matrix = exp_matrix
@@ -207,6 +207,7 @@ class stLDMDataset(torch.utils.data.Dataset):
                 self.min_val = encoded_exp_matrix.min().item()
             if encoded_exp_matrix.max().item() > self.max_val:
                 self.max_val = encoded_exp_matrix.max().item()    
+       
         return all_neighborhoods
     
 
@@ -232,14 +233,14 @@ class stLDMDataset(torch.utils.data.Dataset):
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": encoded_spot_exp.squeeze(),
-                                            'patches': self.patch_features[idx,:],
+                                            "patches": self.patch_features[idx,:].detach().cpu(),
                                             "exp_mask": spot_mask}
                 
             else:
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": spot_exp.squeeze(),
-                                            'patches': self.patch_features[idx,:]}
+                                            "patches": self.patch_features[idx,:].detach().cpu()}
                 
                 # This variable is just for min and max calculation
                 encoded_spot_exp = spot_exp
@@ -429,3 +430,36 @@ class SpaREDData():
         return DataLoader(self.all_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
     
 
+if __name__ == "__main__":
+    from Encoders_helper import ImageEncoder, GeneAutoencoder
+    parser = get_main_parser()
+    args = parser.parse_args()
+
+    print(args)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    # Load Image encoder (patch encoder)
+    # Load the class 
+    image_encoder = ImageEncoder(args.image_encoder, args.dataset)
+    # Get the model weights of the patch encoder
+    image_encoder_model, transforms = image_encoder.get_patch_encoder_model()
+
+    # Load gene autoencoder
+    #TODO: replace this using args or something else in order to experiment with different gene_autoencoder
+    configs = {'input_dim': 1024,
+               'latent_dim': 128,
+               'embedding_dim': 256,
+               'num_layers': 2,
+               'num_heads':2}
+    
+    gene_autoencoder_model = None
+    if args.gene_autoencoder:
+        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.dataset)
+        gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
+
+    spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
+
+    breakpoint()
+    AA = next(iter(spared_data.train_dataloader()))
+    print("finish")

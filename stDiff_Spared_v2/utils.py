@@ -17,7 +17,6 @@ def get_main_parser():
     parser.add_argument('--pred_layer',                     type=str,               default='c_t_deltas',                    help='SpaRED prediction layer to use.')
     parser.add_argument('--num_neighs',                     type=int,               default=6,                               help='Amount of neighbors considered to build spot neighborhoods. Must be the same as the ones used to train the autoencoder. Use -1 to avoid neighbors info')
     parser.add_argument('--normalize_input',                type=str2bool,          default=True,                            help='Whether or not to normalize the DiT input data (encoded matrix) between -1 and 1 when preparing dataloader.')
-    parser.add_argument('--autoencoder_ckpts_path',         type=str,               default='',                              help='Path to trained checkpoints of AE corresponding to the dataset used.')
     parser.add_argument('--decode_as_matrix',               type=str2bool,          default=True,                            help='Whether or not the decoder receives 2D inputs.')
     # Model parameters #######################################################################################################################################################################
     parser.add_argument('--dit_hidden_size',                type=int,               default=1024,                            help='')
@@ -41,8 +40,7 @@ def get_main_parser():
     parser.add_argument("--scheduler",                      type=str2bool,          default=True,                            help='Whether to use LR scheduler or not.')
     # Image encoder and Gene Autoencoder parameters ##########################################################################################################################################
     parser.add_argument('--image_encoder',                  type=str,               default='uni',                           help='Name of the image encoder to use. (uni, shufflenet)')
-    parser.add_argument('--gene_autoencoder',               type=str,               default=None,                            help='Name of the gene autoencoder to use. Only one by now: Transformer_encoder_mlp_decoder_v1')
-    parser.add_argument('--autoencoder_path',               type=str,               default=None,                            help='Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/villacampa_lung_organoid/autoencoder_model.ckpt') 
+    parser.add_argument('--gene_autoencoder',               type=str,               default=None,                            help='Name of the gene autoencoder to use. Only one for now: Transformer_encoder_mlp_decoder_v1')
     ##########################################################################################################################################################################################
     parser.add_argument('--debbug_wandb',                   type=str2bool,          default=False,                           help='Log in debbugs wandb')
     return parser
@@ -191,7 +189,7 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         else:
             decoded_imputation = decode(imputation=imputation, model_decoder=model_autoencoder)
             decoded_perturbation = decode(imputation=perturbation, model_decoder=model_autoencoder)
-            dit_imputation = torch.tensor(imputation, dtype=torch.float32)[:,:,0]
+            dit_imputation = torch.tensor(imputation, dtype=torch.float32)[:,0,:] # imputation shape is BSx7x128, thus we take only index 0 in the second dimension. 
             dit_gt = torch.tensor(ground_truth, dtype=torch.float32)[:,:,0]
 
         mse_pre = F.mse_loss(imputation, perturbation)
@@ -200,22 +198,19 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         print("MSE pred vs perturbed-pred after decoding: ", mse_post)
         
         dit_mse = F.mse_loss(dit_gt.to('cuda'), dit_imputation.to('cuda'))
-        print("mse del dit (encoded pred vs encoded gt): ", dit_mse.item()) # MSE de predicciÃ³n vs gt pero antes de decodear 
+        print("mse del dit (encoded pred vs encoded gt): ", dit_mse.item()) # MSE between gt and prediction before decoding.
         wandb_logger.log({"encoded_pred_MSE": dit_mse})
 
-        imputation = decode(imputation=imputation.unsqueeze(dim=1), model_decoder=model_autoencoder)
+        imputation = decode(imputation=imputation, model_decoder=model_autoencoder)
 
 
     imputation = imputation.detach().cpu() # Sigo en c_t_deltas
-
-    #Evaluate only on main spot of each sample
-    mask_boolean = test_mask
     
     if len(imputation.shape) == 3:
-        #Evaluate only on spot central
+        #Evaluate only on main spot
         imputation = imputation[:,0,:]
-        mask_boolean = test_mask[:,:,0]
-
+    if len(test_mask.shape) == 3:
+        test_mask = test_mask[:,:,0]
 
     if "deltas" in args.pred_layer:
         imputation_tensor = imputation + data.average_vals.cpu()
@@ -223,6 +218,6 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
 
     imputation_tensor = torch.tensor(imputation_tensor, dtype=torch.float32)
 
-    metrics_dict = get_metrics(c_t_log1p_data, imputation_tensor, mask_boolean) 
+    metrics_dict = get_metrics(c_t_log1p_data, imputation_tensor.to(device), test_mask) 
     
     return metrics_dict, imputation_tensor

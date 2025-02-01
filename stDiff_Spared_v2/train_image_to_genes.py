@@ -45,9 +45,9 @@ def main():
     
     gene_autoencoder_model = None
     if args.gene_autoencoder:
-        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
+        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.dataset)
         gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
-
+        wandb.config.update({"autoencoder_ckpts_path": gene_autoencoder.autoencoder_path}, allow_val_change=True)
     
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
 
