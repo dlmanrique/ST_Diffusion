@@ -51,7 +51,7 @@ def main():
     
     # Prepare data
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
-    
+
     # Register the name of the layer that will be used for computing the final ST metrics with the get_metrics function after sampling
     if "deltas" in args.pred_layer:
         wandb.config.layer_for_test = spared_data.layer_for_test

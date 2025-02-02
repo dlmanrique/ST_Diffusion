@@ -66,6 +66,7 @@ def train_stDiff(model,
     model.train()
     best_mse = np.inf
     best_pcc = 0
+    best_epoch = 0
 
     #Define keys for spot or neighbors
     if args.num_neighs == -1:
@@ -159,16 +160,16 @@ def train_stDiff(model,
             if metrics_dict["MSE"] < best_mse:
                 best_mse = metrics_dict["MSE"]
                 best_pcc = metrics_dict["PCC-Gene"]
-                best_model_path = os.path.join(save_path, f"ckpts_epoch_{epoch}.pt")
-                
+                best_epoch = epoch
+                #best_model_path = os.path.join(save_path, f"ckpts_epoch_{epoch}.pt")
+                best_model_path = os.path.join(save_path, f"best_model_ckpts.pt")
+                # Save checkpoints to best model
                 torch.save(model.state_dict(), best_model_path)
-
-                
             
             wandb_logger.log({"MSE": metrics_dict["MSE"], "PCC": metrics_dict["PCC-Gene"]})
 
     # Save the best MSE and best PCC on the validation set
-    wandb_logger.log({"best_MSE_val":best_mse, "best_PCC_val": best_pcc})
+    wandb_logger.log({"best_MSE_val":best_mse, "best_PCC_val": best_pcc, "best_epoch": best_epoch})
 
     return best_model_path
 
