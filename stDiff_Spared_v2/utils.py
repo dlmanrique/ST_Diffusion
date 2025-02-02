@@ -16,6 +16,7 @@ def get_main_parser():
     parser.add_argument('--dataset',                        type=str,               default='villacampa_lung_organoid',      help='Dataset to use.')
     parser.add_argument('--pred_layer',                     type=str,               default='c_t_deltas',                    help='SpaRED prediction layer to use.')
     parser.add_argument('--num_neighs',                     type=int,               default=6,                               help='Amount of neighbors considered to build spot neighborhoods. Must be the same as the ones used to train the autoencoder. Use -1 to avoid neighbors info')
+    parser.add_argument('--normalize_img_fts',              type=str2bool,          default=False,                           help='Whether or not to normalize the image features to a reange [-1, 1].')
     # Model parameters #######################################################################################################################################################################
     parser.add_argument('--dit_hidden_size',                type=int,               default=1024,                            help='')
     parser.add_argument('--dit_depth',                      type=int,               default=12,                              help='')

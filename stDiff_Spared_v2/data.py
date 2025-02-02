@@ -65,18 +65,19 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.all_st_data_shape = (self.expression_mtx.shape[0], 128) #-> DiT input is always 128
         # Calculate patch_features
         self.calculate_patch_embeddings()
-        #Normalize patch_feature in a range (-1,1) 
-        self.normalize_image_features()
+        # If required, normalize patch_feature in a range (-1,1) 
+        if self.args.normalize_img_fts:
+            self.normalize_image_features()
         # Build and save each spot's neighborhood, and the min and max val of the data split
         self.min_val, self.max_val = np.inf, -np.inf 
         
         if args.num_neighs == -1:
-            print(f'Construct {self.split_name} dataloader by spots using gene autoencoder: {self.args.gene_autoencoder} and  image encoder: {self.args.image_encoder}')
+            print(f'Build {self.split_name} dataloader by spots using gene autoencoder: {self.args.gene_autoencoder} and  image encoder: {self.args.image_encoder}')
             self.spot_data = self.build_spot_data()
             self.DiT_input_dim = self.spot_data['0']['encoded_spot_exp'].shape # De aca tengo (128)
             self.image_features_dim = self.spot_data['0']['patches'].shape[0] # De aca tengo el 1024 de UNI
         else:
-            print(f'Construct {self.split_name} dataloader by matrix using gene autoencoder: {self.args.gene_autoencoder} and image encoder: {self.args.image_encoder}')
+            print(f'Build {self.split_name} dataloader by matrix using gene autoencoder: {self.args.gene_autoencoder} and image encoder: {self.args.image_encoder}')
             # Process to get neighboors
             self.adj_mat = None
             self.get_adjacency(self.args.num_neighs)
