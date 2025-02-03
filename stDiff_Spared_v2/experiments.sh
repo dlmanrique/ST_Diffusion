@@ -1,3 +1,4 @@
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --gene_autoencoder Transformer_encoder_mlp_decoder_v1 --autoencoder_path Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/villacampa_lung_organoid/autoencoder_model.ckpt
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset abalo_human_squamous_cell_carcinoma --gene_autoencoder Transformer_encoder_mlp_decoder_v1 --autoencoder_path Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/abalo_human_squamous_cell_carcinoma/autoencoder_model.ckpt
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --gene_autoencoder Transformer_encoder_mlp_decoder_v1 --autoencoder_path Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/villacampa_lung_organoid/autoencoder_model.ckpt
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset mirzazadeh_mouse_brain --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset villacampa_mouse_brain --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset mirzazadeh_human_small_intestine --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset vicari_human_striatium --train False --test False --debbug_wandb True

@@ -1,2 +1,9 @@
-CUDA_VISIBLE_DEVICES=0 python train_image_to_genes.py --num_neighs -1 --dataset 10xgenomic_mouse_brain_sagittal_posterior --gene_autoencoder Transformer_encoder_mlp_decoder_v1 --autoencoder_path Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/10xgenomic_mouse_brain_sagittal_posterior/autoencoder_model.ckpt
-CUDA_VISIBLE_DEVICES=0 python train_image_to_genes.py --num_neighs -1 --dataset mirzazadeh_mouse_bone --gene_autoencoder Transformer_encoder_mlp_decoder_v1 --autoencoder_path Pretrained_Encoders_Autoencoders/Genes_Autoencoders/Transformer_encoder_mlp_decoder_v1/mirzazadeh_mouse_bone/autoencoder_model.ckpt
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset mirzazadeh_mouse_brain --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset villacampa_mouse_brain --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset mirzazadeh_human_small_intestine --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset erickson_human_prostate_cancer_p1 --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset abalo_human_squamous_cell_carcinoma --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset 10xgenomic_mouse_brain_sagittal_posterior --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset mirzazadeh_mouse_bone --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset mirzazadeh_mouse_bone --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --num_neighs -1 --image_encoder shufflenet --dataset vicari_human_striatium --train False --test False --debbug_wandb True
