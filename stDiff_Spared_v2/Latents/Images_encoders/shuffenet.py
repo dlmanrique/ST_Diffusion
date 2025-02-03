@@ -13,13 +13,15 @@ root_folder = current_file.parents[2]
 
 
 class ShuffenetEncoder():
-    def __init__(self, path):
+    def __init__(self, path, genes_number):
         self.model_weights = path
+        self.genes_number = genes_number
 
 
     def get_encoder(self):
         model_ft = models.shufflenet_v2_x0_5()
-        model_ft.fc = nn.Linear(1024, 128)
+        
+        model_ft.fc = nn.Linear(1024, self.genes_number)
         checkpoint = torch.load(os.path.join(root_folder, self.model_weights),  weights_only=False)
 
         new_state_dict = OrderedDict()

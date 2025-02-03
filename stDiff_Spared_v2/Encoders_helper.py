@@ -2,9 +2,10 @@ import torch
 import os
 
 class ImageEncoder():
-    def __init__(self, name, dataset):
+    def __init__(self, name, dataset, genes_number):
         self.encoder_name = name
         self.dataset = dataset
+        self.genes_number = genes_number
     
     def get_patch_encoder_model(self):
         """
@@ -20,7 +21,7 @@ class ImageEncoder():
             from Latents.Images_encoders.shuffenet import ShuffenetEncoder 
             
             model_weights_path = os.path.join('Pretrained_Encoders_Autoencoders', 'Images_encoders', self.encoder_name, self.dataset, 'image_encoder.ckpt')
-            encoder_class =  ShuffenetEncoder(model_weights_path)
+            encoder_class =  ShuffenetEncoder(model_weights_path, self.genes_number)
             
         else:
             raise ValueError('The image encoder not exist')

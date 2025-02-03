@@ -2,6 +2,7 @@ import os
 import warnings
 import torch
 import scanpy as sc
+import json
 
 from Encoders_helper import ImageEncoder, GeneAutoencoder
 from model_stDiff.stDiff_model_2D import DiT_stDiff
@@ -29,9 +30,14 @@ def main():
     save_path = os.path.join("Experiments", args.dataset, exp_name)
     os.makedirs(save_path, exist_ok=True)
 
+    #Open file with dataset name and genes info
+    with open("dataset_genes_info.json", "r") as file:
+        dataset2genes = json.load(file)
+
+
     # Load Image encoder (patch encoder)
     # Load the class 
-    image_encoder = ImageEncoder(args.image_encoder, args.dataset)
+    image_encoder = ImageEncoder(args.image_encoder, args.dataset, dataset2genes[args.dataset])
     # Get the model weights of the patch encoder
     image_encoder_model, transforms = image_encoder.get_patch_encoder_model()
 
