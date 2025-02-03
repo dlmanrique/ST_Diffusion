@@ -37,12 +37,16 @@ class ImageEncoder():
         
 
 class GeneAutoencoder():
-    def __init__(self, name, path):
+    def __init__(self, name, dataset):
         self.name = name
-        self.autoencoder_path = path
+        self.autoencoder_path = os.path.join(
+            "Pretrained_Encoders_Autoencoders", 
+            "Genes_Autoencoders", 
+            name, 
+            dataset, 
+            "autoencoder_model.ckpt")
 
     def get_gene_autoencoder(self, configs: dict):
-        #TODO: if I have more than one option, add the if statements to support that case.
         if self.name == "Transformer_encoder_mlp_decoder_v1":
             from Latents.Gene_Autoencoders.gene_autoencoder import Transformer_encoder_mlp_decoder
             autoencoder =  Transformer_encoder_mlp_decoder(input_dim = configs['input_dim'], 
@@ -52,7 +56,6 @@ class GeneAutoencoder():
                                             num_heads = configs['num_heads'])
         else:
             raise ValueError('The gene encoder not exist')
-
 
         checkpoint = torch.load(self.autoencoder_path)
         autoencoder.load_state_dict(checkpoint['state_dict'])

@@ -65,18 +65,19 @@ class stLDMDataset(torch.utils.data.Dataset):
         self.all_st_data_shape = (self.expression_mtx.shape[0], 128) #-> DiT input is always 128
         # Calculate patch_features
         self.calculate_patch_embeddings()
-        #Normalize patch_feature in a range (-1,1) 
-        self.normalize_image_features()
+        # If required, normalize patch_feature in a range (-1,1) 
+        if self.args.normalize_img_fts:
+            self.normalize_image_features()
         # Build and save each spot's neighborhood, and the min and max val of the data split
         self.min_val, self.max_val = np.inf, -np.inf 
         
         if args.num_neighs == -1:
-            print(f'Construct {self.split_name} dataloader by spots using gene autoencoder: {self.args.gene_autoencoder} and  image encoder: {self.args.image_encoder}')
+            print(f'Build {self.split_name} dataloader by spots using gene autoencoder: {self.args.gene_autoencoder} and  image encoder: {self.args.image_encoder}')
             self.spot_data = self.build_spot_data()
             self.DiT_input_dim = self.spot_data['0']['encoded_spot_exp'].shape # De aca tengo (128)
             self.image_features_dim = self.spot_data['0']['patches'].shape[0] # De aca tengo el 1024 de UNI
         else:
-            print(f'Construct {self.split_name} dataloader by matrix using gene autoencoder: {self.args.gene_autoencoder} and image encoder: {self.args.image_encoder}')
+            print(f'Build {self.split_name} dataloader by matrix using gene autoencoder: {self.args.gene_autoencoder} and image encoder: {self.args.image_encoder}')
             # Process to get neighboors
             self.adj_mat = None
             self.get_adjacency(self.args.num_neighs)
@@ -185,19 +186,19 @@ class stLDMDataset(torch.utils.data.Dataset):
                     
                 # Get median imputation mask for idx spot and its nn
                 spot_mask = self.great_mask[idx].unsqueeze(dim=0) #size 1xgenes(1024)
-                nn_mask = self.great_mask[self.adj_mat[:,idx]==1.] #size 6xgenes(1024)
+                nn_mask = self.great_mask[self.adj_mat[idx,:]==1.] #size 6xgenes(1024)
                 great_mask = torch.cat((spot_mask, nn_mask), dim=0)
 
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
-                                            "exp_matrix": exp_matrix, 
+                                            "exp_matrix": exp_matrix.squeeze(0), 
                                             "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
-                                            'patches': self.patch_features[nn_indices,:],
+                                            "patches": self.patch_features[nn_indices,:].detach().cpu(),
                                             "exp_mask": great_mask}
             else:
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
                                             "exp_matrix": exp_matrix.squeeze(), 
-                                            "encoded_exp_matrix": exp_matrix,
-                                            'patches': self.patch_features[nn_indices,:]}
+                                            "encoded_exp_matrix": exp_matrix.squeeze(),
+                                            "patches": self.patch_features[nn_indices,:].detach().cpu()}
 
                 # This variable is just for min and max calculation
                 encoded_exp_matrix = exp_matrix
@@ -207,6 +208,7 @@ class stLDMDataset(torch.utils.data.Dataset):
                 self.min_val = encoded_exp_matrix.min().item()
             if encoded_exp_matrix.max().item() > self.max_val:
                 self.max_val = encoded_exp_matrix.max().item()    
+       
         return all_neighborhoods
     
 
@@ -232,14 +234,14 @@ class stLDMDataset(torch.utils.data.Dataset):
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": encoded_spot_exp.squeeze(),
-                                            'patches': self.patch_features[idx,:],
+                                            "patches": self.patch_features[idx,:].detach().cpu(),
                                             "exp_mask": spot_mask}
                 
             else:
                 all_spots_data[str(idx)] = {"spot_id": spot_name, 
                                             "spot_expression": spot_exp.squeeze(), 
                                             "encoded_spot_exp": spot_exp.squeeze(),
-                                            'patches': self.patch_features[idx,:]}
+                                            "patches": self.patch_features[idx,:].detach().cpu()}
                 
                 # This variable is just for min and max calculation
                 encoded_spot_exp = spot_exp
@@ -328,12 +330,15 @@ class SpaREDData():
         # Sort genes in adatas
         self.sort_adatas()
 
-        # Get average values for 1024-genes adata or 128-genes adata
+        # Get average values for 1024-genes adata or 128-genes adata if pred layer is based on deltas
         # Always work with this layer
-        if self.autoencoder:
-            self.average_vals = torch.tensor(self.full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
-        else:
-            self.average_vals = torch.tensor(self.original_full_adata.var[f"c_t_log1p_avg_exp"]).unsqueeze(0)
+        self.layer_for_test = args.pred_layer
+        if "deltas" in args.pred_layer:
+            self.layer_for_test = args.pred_layer.rsplit("_", 1)[0] + "_log1p"
+            if self.autoencoder:
+                self.average_vals = torch.tensor(self.full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
+            else:
+                self.average_vals = torch.tensor(self.original_full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
 
         # Set split data and create data modules
         self.setup()
@@ -429,3 +434,36 @@ class SpaREDData():
         return DataLoader(self.all_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
     
 
+if __name__ == "__main__":
+    from Encoders_helper import ImageEncoder, GeneAutoencoder
+    parser = get_main_parser()
+    args = parser.parse_args()
+
+    print(args)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    # Load Image encoder (patch encoder)
+    # Load the class 
+    image_encoder = ImageEncoder(args.image_encoder, args.dataset)
+    # Get the model weights of the patch encoder
+    image_encoder_model, transforms = image_encoder.get_patch_encoder_model()
+
+    # Load gene autoencoder
+    #TODO: replace this using args or something else in order to experiment with different gene_autoencoder
+    configs = {'input_dim': 1024,
+               'latent_dim': 128,
+               'embedding_dim': 256,
+               'num_layers': 2,
+               'num_heads':2}
+    
+    gene_autoencoder_model = None
+    if args.gene_autoencoder:
+        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.dataset)
+        gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
+
+    spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
+
+    breakpoint()
+    AA = next(iter(spared_data.train_dataloader()))
+    print("finish")

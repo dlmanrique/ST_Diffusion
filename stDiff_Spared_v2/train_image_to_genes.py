@@ -45,12 +45,18 @@ def main():
     
     gene_autoencoder_model = None
     if args.gene_autoencoder:
-        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.autoencoder_path)
+        gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.dataset)
         gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
-
+        wandb.config.update({"autoencoder_ckpts_path": gene_autoencoder.autoencoder_path}, allow_val_change=True)
     
+    # Prepare data
     spared_data = SpaREDData(args, gene_autoencoder_model, image_encoder_model, transforms)
 
+    # Register the name of the layer that will be used for computing the final ST metrics with the get_metrics function after sampling
+    if "deltas" in args.pred_layer:
+        wandb.config.layer_for_test = spared_data.layer_for_test
+    else:
+        wandb.config.layer_for_test = args.pred_layer
 
     ### DIFFUSION MODEL ##########################################################################
     # Here I have the input dim for the DiT model, 128 or 7,128
@@ -92,7 +98,6 @@ def main():
     model.load_state_dict(torch.load(best_model_path))
 
     if args.test:  
-
         #Inference in train and val to control overfitting
         train_dict, _ = inference_function(
                                 data=spared_data,
@@ -113,7 +118,7 @@ def main():
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
                                 wandb_logger=wandb,
-                                process="valid"
+                                process="val"
                                 )
         
         test_dict, _ = inference_function(
