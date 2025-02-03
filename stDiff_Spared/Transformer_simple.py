@@ -111,11 +111,11 @@ class Transformer(pl.LightningModule):
         return total_loss
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-4)
+        optimizer = optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2)
         # Using a scheduler is optional but can be helpful.
         # The scheduler reduces the LR if the validation performance hasn't improved for the last N epochs
-        #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=10, min_lr=1e-10)
-        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.1)
+        #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=100, min_lr=1e-10)
+        #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1500, gamma=0.1)
         #return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
         return {"optimizer": optimizer, "monitor": "val_loss"}
 

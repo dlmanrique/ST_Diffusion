@@ -1,14 +1,11 @@
 import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
-from encoder_LSTM import Encoder_LSTM
-from decoder_LSTM import Decoder_LSTM
 import torch.optim as optim
 from utils import *
 import random
 import torch.nn as nn
 import math
-
 
 class TransformerEncoder(nn.Module):
     def __init__(self, input_dim, embedding_dim, latent_dim, num_heads, num_layers, dropout=0.1):
@@ -40,8 +37,8 @@ class TransformerEncoder(nn.Module):
         # Input shape: [Batch, 7, 1024]
         #breakpoint()
         x = self.encoder_projection(x) # Shape: [Batch, 7, Embedding Dim]
-        #x = self.positional_encoding(x)
-        x = x + self.positional_encoding
+        x = self.positional_encoding(x)
+        #x = x + self.positional_encoding
         
         x = x.permute(1, 0, 2)
         x = self.transformer(x)  # Shape: [Batch, 7, Embedding Dim]

@@ -1,2 +1,0 @@
-CUDA_VISIBLE_DEVICES=5 python main_2D.py --dataset villacampa_lung_organoid --prediction_layer c_t_deltas --batch_size 512
-CUDA_VISIBLE_DEVICES=5 python main_2D.py --dataset villacampa_mouse_brain --prediction_layer c_t_deltas --batch_size 1024

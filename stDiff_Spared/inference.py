@@ -9,12 +9,10 @@ from utils import *
 from visualize_imputation import *
 import wandb
 from datetime import datetime
-from encoder import Encoder
-from decoder import Decoder
-from autoencoder_mse import Autoencoder
-from autoencoder_LSTM import Autoencoder_LSTM
 from Transformer_encoder_decoder import *
 from Transformer_simple import Transformer
+from baseline import adaptive_median_filter_pepper
+from scipy.sparse import csr_matrix
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -44,7 +42,7 @@ def main():
     else:
         exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
-    #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
+    
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
                "dataset": args.dataset, 
@@ -78,14 +76,9 @@ def main():
     else:
         dataset = get_dataset(args.dataset)
         adata_128 = dataset.adata
-    # Masking
-    #prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
-    # Add neccesary masking layers in the adata object
-    #mask_exp_matrix(adata=adata, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
 
     ### AUTOENCODER ADATA ###
     num_genes = adata_128.shape[1]
-    #num_genes = 128
     
     adata = ad.read_h5ad(f'/media/SSD4/dvegaa/ST_Diffusion/stDiff_Spared/adata_1024/{args.dataset}_1024.h5ad')
     splits = adata.obs["split"].unique().tolist()
@@ -97,8 +90,6 @@ def main():
     genes_1024 = adata.var["gene_ids"].unique().tolist()
     
     #Get updated 1024 adata
-    #adata = get_1204_adata(adata=adata_128, adata_1024=adata, genes=genes_128)
-    #Sort adatas and get genes again
     adata, adata_128 = sort_adatas(adata=adata, adata_128=adata_128)
 
     genes_128 = adata_128.var["gene_ids"].unique().tolist()
@@ -113,13 +104,17 @@ def main():
     gene_weights = torch.tensor(genes_evaluate, dtype=torch.float32)
     
     model_autoencoder = None
+    
+    prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
+    mask_exp_matrix(adata=adata_128, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
+    
     #matrix input
     list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
    
     #Transformer model
     num_layers = 2
-    n_heads = 8
-    embedding_dim =  128
+    n_heads = 2
+    embedding_dim =  256
     feedforward_dim = embedding_dim * 2
     
     model_autoencoder = Transformer(input_dim=1024, 
@@ -131,7 +126,7 @@ def main():
                     lr=args.lr,
                     gene_weights=gene_weights)
     
-    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "2025-01-06-19-16-49", "autoencoder_model.ckpt") 
+    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "autoencoder_model.ckpt") 
     
     checkpoint = torch.load(checkpoint_path)
     model_autoencoder.load_state_dict(checkpoint['state_dict'])
@@ -139,10 +134,6 @@ def main():
     
     #matrix input
     list_nn = encode_transformers(list_nn=list_nn, model_autoencoder=model_autoencoder, batch_size=args.batch_size)
-
-    #vector input
-    #list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
-    
     list_nn_masked = mask_extreme_prediction(list_nn)
     #####TODO: revisar
     
@@ -150,20 +141,20 @@ def main():
     ## Train
     st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
     mask_extreme = np.zeros((mask_train.shape[0], mask_train.shape[1]*8, mask_train.shape[2]))
-    mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate)
+    mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate, args)
     #mask_extreme_completion_train = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="train"], mask_train)
     
     ## Validation
-    st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
-    mask_extreme = np.zeros((mask_valid.shape[0], mask_valid.shape[1]*8, mask_valid.shape[2]))
-    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate)
+    st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
+    mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1]*8, mask_test.shape[2]))
+    mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate, args)
     #mask_extreme_completion_valid = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="val"], mask_valid)
     
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
         mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1]*8, mask_test.shape[2]))
-        mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate)
+        mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate, args)
         #mask_extreme_completion_test = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="test"], mask_test)
     
     # Definir un tensor de promedio en caso de predecir una capa delta
@@ -182,10 +173,10 @@ def main():
         batch_size=batch_size, 
         is_shuffle=True)
 
-    valid_dataloader = get_data_loader(
-        st_data_valid, 
-        st_data_masked_valid,
-        mask_valid, 
+    test_dataloader = get_data_loader(
+        st_data_test, 
+        st_data_masked_test,
+        mask_test, 
         batch_size=batch_size, 
         is_shuffle=False)
 
@@ -198,11 +189,9 @@ def main():
         batch_size=batch_size, 
         is_shuffle=False)
         
-
     ### DIFFUSION MODEL ##########################################################################
     num_nn = st_data_train[0].shape
-    #num_nn = (64,3)
-    
+
     # Define the model
     model = DiT_stDiff(
         input_size=num_nn,  
@@ -214,17 +203,21 @@ def main():
         mlp_ratio=4.0,
         dit_type='dit')
 
-    dit_path = os.path.join("Experiments", "2025-01-06-19-35-23", f"{args.dataset}_12_1024_0.0001_noise.pt")
+    dit_path = os.path.join("Experiments", f"{args.dataset}", f"{args.dataset}_12_1024_0.0001_noise.pt")
     dit_state_dict = torch.load(dit_path)
     model.load_state_dict(dit_state_dict)
     model.to(device)
     model.eval()
     
-    #decoder = model_autoencoder.decoder
-    # Load the saved state dictionary
-    #decoder_checkpoint = torch.load(os.path.join("decoder_models", f"{args.dataset}", "fine_tuned_decoder.pt"))
-    #decoder.load_state_dict(decoder_checkpoint)
-    adata_test = [adata[adata.obs["split"]=="test"], adata_128[adata_128.obs["split"]=="test"]]
+    if 'test' in splits:
+        adata_test = [adata[adata.obs["split"]=="test"], adata_128[adata_128.obs["split"]=="test"]]
+        max_enc = max_min_enc["test"][0]
+        min_enc = max_min_enc["test"][1]
+    else:
+        adata_test = [adata[adata.obs["split"]=="val"], adata_128[adata_128.obs["split"]=="val"]]
+        max_enc = max_min_enc["val"][0]
+        min_enc = max_min_enc["val"][1]
+        
     test_metrics, imputation_data = inference_function(adata=adata_test,
                                                         dataloader=test_dataloader, 
                                                         data=st_data_test, 
@@ -239,11 +232,41 @@ def main():
                                                         device=device,
                                                         args=args,
                                                         model_decoder=model_autoencoder,
-                                                        max_enc=max_min_enc["test"][0],
-                                                        min_enc=max_min_enc["test"][1])
+                                                        max_enc=max_enc,
+                                                        min_enc=min_enc)
     
-    breakpoint()
-    print(test_metrics)
+    """
+    adata_test[0].layers["diff_pred"] = imputation_data.detach().cpu().numpy()
+    genes_to_keep = adata_test[1].var["gene_ids"]
+    subset_mask = adata_test[0].var['gene_ids'].isin(genes_to_keep)
+    adata_subsampled = adata_test[0][:, subset_mask].copy()
+    
+    # Agregar capa de medianas y sumarle el avg_tensor
+    #path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/villacampa_lung_organoid/2024-11-27-06-45-33/adata_2024-11-27-06-45-33.h5ad"
+    #path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/vicari_human_striatium/2024-11-27-07-14-09/adata_2024-11-27-07-14-09.h5ad"
+    path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/mirzazadeh_mouse_bone/2024-11-27-07-11-28/adata_2024-11-27-07-11-28.h5ad"
+    adata_visualization = ad.read_h5ad(path_medians)
+    format = args.prediction_layer.split("deltas")[0]
+    avg_tensor_128 = torch.tensor(adata_visualization.var[f"{format}log1p_avg_exp"]).view(1, adata_visualization.shape[1])
+    avg_tensor_128_np = avg_tensor_128.cpu().numpy()
+    avg_tensor_sparse = csr_matrix(avg_tensor_128_np)
+    avg_tensor_dense = avg_tensor_sparse.toarray() if isinstance(avg_tensor_sparse, csr_matrix) else avg_tensor_sparse
+    expanded_avg_tensor = np.broadcast_to(avg_tensor_dense, adata_visualization.layers["median_prediction_expression_matrix"].shape)
+
+    # Suma directa
+    adata_visualization.layers["median_prediction_expression_matrix"] += expanded_avg_tensor
+    if 'test' in splits:
+        adata_visualization = adata_visualization[adata_visualization.obs["split"]=="test"]
+    else:
+        adata_visualization = adata_visualization[adata_visualization.obs["split"]=="val"]
+        
+    adata_test[1].layers["median_pred"] = adata_visualization.layers["median_prediction_expression_matrix"]
+    adata_test[1].layers["diff_pred"] = adata_subsampled.layers["diff_pred"]
+    #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+    
+    from visualize_imputation import plot_pred_image
+    plot_pred_image(adata = adata_test[1], exp_name = args.dataset, n_genes = 3, slide = "")
+    """
 
 if __name__=='__main__':
     main()

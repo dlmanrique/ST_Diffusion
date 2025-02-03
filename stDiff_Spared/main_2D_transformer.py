@@ -9,10 +9,6 @@ from utils import *
 from visualize_imputation import *
 import wandb
 from datetime import datetime
-from encoder import Encoder
-from decoder import Decoder
-from autoencoder_mse import Autoencoder
-from autoencoder_LSTM import Autoencoder_LSTM
 from Transformer_encoder_decoder import *
 from Transformer_simple import Transformer
 
@@ -43,7 +39,8 @@ def main():
 
     else:
         exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
+        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name)
+        
     #wandb.init(project="Diffusion_Models_NN", entity="sepal_v2", name=exp_name)
     wandb.config = {"lr": args.lr, "dataset": args.dataset}
     wandb.log({"lr": args.lr, 
@@ -133,11 +130,18 @@ def main():
                     lr=args.lr,
                     gene_weights=gene_weights)
     
-    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "2025-01-07-12-48-45", "autoencoder_model.ckpt") 
+    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "autoencoder_model.ckpt") 
     
     checkpoint = torch.load(checkpoint_path)
     model_autoencoder.load_state_dict(checkpoint['state_dict'])
     model_autoencoder.to(device)
+    
+    # Freeze the parameters of the model
+    for param in model_autoencoder.parameters():
+        param.requires_grad = False
+
+    # Ensure the model is in evaluation mode
+    model_autoencoder.eval()
     
     #matrix input
     list_nn = encode_transformers(list_nn=list_nn, model_autoencoder=model_autoencoder, batch_size=args.batch_size)
@@ -153,20 +157,20 @@ def main():
     ## Train
     st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
     mask_extreme = np.zeros((mask_train.shape[0], mask_train.shape[1]*8, mask_train.shape[2]))
-    mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate)
+    mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate, args)
     #mask_extreme_completion_train = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="train"], mask_train)
     
     ## Validation
     st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
     mask_extreme = np.zeros((mask_valid.shape[0], mask_valid.shape[1]*8, mask_valid.shape[2]))
-    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate)
+    mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate, args)
     #mask_extreme_completion_valid = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="val"], mask_valid)
     
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
         mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1]*8, mask_test.shape[2]))
-        mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate)
+        mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate, args)
         #mask_extreme_completion_test = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="test"], mask_test)
     
     # Definir un tensor de promedio en caso de predecir una capa delta
@@ -204,7 +208,7 @@ def main():
 
     ### DIFFUSION MODEL ##########################################################################
     num_nn = st_data_train[0].shape
-    #num_nn = (64,3)
+    
     # Define the model
     model = DiT_stDiff(
         input_size=num_nn,  
@@ -219,12 +223,6 @@ def main():
     model.to(device)
     save_path_prefix = args.dataset + "_" + str(args.depth) + "_" + str(args.hidden_size) + "_" + str(args.lr) + "_" + args.loss_type + ".pt"
     
-    ## LOAD THE DECODER
-    #decoder = Decoder(sizes=list_dec)
-    # Load the saved state dictionary
-    #decoder.load_state_dict(torch.load(os.path.join("decoder_models", f"{args.dataset}", "fine_tuned_decoder.pt")))
-
-    #decoder = model_autoencoder.decoder()
     ### Train the model
     model.train()
     if not os.path.isfile(save_path_prefix):

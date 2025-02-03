@@ -26,7 +26,6 @@ str2floatlist = lambda x: [float(i) for i in x.split(',')]
 str2h_list = lambda x: [str2intlist(i) for i in x.split('//')[1:]]
 
 
-
 def get_main_parser():
     parser = argparse.ArgumentParser(description='Code for Diffusion Imputation Model')
     # Dataset parameters #####################################################################################################################################################################
@@ -41,7 +40,8 @@ def get_main_parser():
     parser.add_argument("--model_type",                        type=str,           default="1D",                                help='If 1D is the Conv1D model and if 2D is the Conv2D model')
     parser.add_argument("--normalization_type",                        type=str,           default="1-1",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1) or is none')
     parser.add_argument("--normalize_encoder",                        type=str,           default="none",                                help='If the normalization is done in range [-1, 1] (-1-1) or is done in range [0, 1] (0-1) or is none')
-    parser.add_argument("--matrix",                        type=str2bool,           default=True,                                help='use transformer encoder decoder')
+    parser.add_argument("--matrix",                        type=str2bool,           default=False,                                help='use transformer encoder decoder')
+    parser.add_argument("--partial",                        type=str2bool,           default=False,                                help='wether im evaluating for partial or complete expression')
     # Train parameters #######################################################################################################################################################################
     parser.add_argument('--seed',                   type=int,          default=1202,                       help='Seed to control initialization')
     parser.add_argument('--lr',type=float,default=0.0001,help='lr to use')
@@ -435,25 +435,11 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
         print("no se aplica ningun tipo de normalizacion")
     
     import torch.nn.functional as F
-    print("Latent Input - Mean:", data.mean().item())
-    print("Latent Output - Mean:", imputation.mean().item())
-    print("Latent Input - Std Dev:", data.std().item())
-    print("Latent Output - Std Dev:", imputation.std().item())
-    
-    imputation = torch.tensor(imputation)
-    perturbation = torch.randn_like(imputation) * 0.01
-    dec_imputation = decode(imputation=imputation, model_decoder=model_decoder, batch_size=args.batch_size)
-    dec_perturbation = decode(imputation=perturbation, model_decoder=model_decoder, batch_size=args.batch_size)
-    mse_pre = F.mse_loss(imputation, perturbation)
-    print("mse pre: ", mse_pre)
-    mse_post = F.mse_loss(dec_imputation, dec_perturbation)
-    print("mse post: ", mse_post)
     
     dit_imputation = torch.tensor(imputation[:,:,0], dtype=torch.float32)
     dit_data = torch.tensor(data[:,:,0], dtype=torch.float32)
     dit_mse = F.mse_loss(dit_data, dit_imputation)
     print("mse del dit: ", dit_mse)
-    #breakpoint()
     
     #Decoded imputation data
     if args.matrix:
@@ -467,50 +453,45 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
     if args.normalize_encoder == "1-1":
         imputation = denormalize_from_minus_one_to_one(imputation, max_enc[0].item(), min_enc[0].item())
     
-    #mask_boolean = (1-mask).astype(bool) #for partial completion
     mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
     
     #Evaluate only on spot central
     mask_boolean = mask_boolean[:,:,0]
-    #data = data[:,:,0]
+
     #GT data
     adata_1024, adata_128 = adata
     data = adata_1024.layers[args.prediction_layer]
     #data = adata_128.layers[args.prediction_layer]
-    #imputation = imputation[:,0,:]
-    #avg_tensor = None
+    
     if avg_tensor != None:
         # Sumar deltas más la expresión del data
-        
-        #vector input
-        #data_tensor = torch.tensor(data)
-        #data_tensor = data_tensor + avg_tensor
-        #data_tensor = np.array(data_tensor.cpu())
-        #data_tensor = torch.tensor(data_tensor, dtype=torch.float32)
-        # Sumar deltas más la expresión de la imputacion
-        imputation_tensor = torch.tensor(imputation)
-        imputation_tensor = imputation_tensor + avg_tensor
-        imputation_tensor = np.array(imputation_tensor.cpu())
+        imputation = torch.tensor(imputation)
+        imputation = imputation + avg_tensor
+        imputation = np.array(imputation.cpu())
 
-    imputation_tensor = torch.tensor(imputation_tensor, dtype=torch.float32)
-    #mse = F.mse_loss(data_tensor, imputation_tensor)
-    #print("mse de 128 genes: ", mse)
+    imputation_tensor = torch.tensor(imputation, dtype=torch.float32)
     
-    #matrix input
-    data_128 = adata_1024.layers["c_t_log1p"]
-    data_128_tensor = torch.tensor(data_128)
-    mse_final = F.mse_loss(imputation_tensor[mask_boolean], data_128_tensor[mask_boolean])
-    print(mse_final)
+    #matrix input extreme completion metrics
+    data_1024 = adata_1024.layers["c_t_log1p"]
+    data_1024_tensor = torch.tensor(data_1024)
+    mse_final = F.mse_loss(imputation_tensor[mask_boolean], data_1024_tensor[mask_boolean])
+    mask_tensor = torch.tensor(mask_boolean)
+    print(f"mse extreme completion: {mse_final}")
     mask_boolean = torch.tensor(mask_boolean)
-    metrics_dict = get_metrics(data_128_tensor.cpu(), imputation_tensor.cpu(), mask_boolean.cpu())
+    metrics_dict = get_metrics(data_1024_tensor.cpu(), imputation_tensor.cpu(), mask_boolean.cpu())
     
-    #vector input
-    #mse_final = F.mse_loss(data_tensor[mask_boolean], imputation_tensor[mask_boolean])
-    #print(mse_final)
-    #mask_boolean = torch.tensor(mask_boolean)
-    #metrics_dict = get_metrics(data_tensor.cpu(), imputation_tensor.cpu(), mask_boolean.cpu())
+    #partial completion metrics
+    if args.partial:
+        data_128 = adata_128.layers["c_t_log1p"]
+        data_128_tensor = torch.tensor(data_128)
+        mask_tensor = torch.tensor(mask_boolean)
+        selected_values = imputation_tensor.masked_select(mask_tensor).reshape(-1, data_128.shape[1])
+        partial_mask = adata_128.layers["masked_expression_matrix"]
+        partial_mask = partial_mask==0
+        mse_final = F.mse_loss(selected_values[partial_mask], data_128_tensor[partial_mask])
+        print(f"mse partial completion: {mse_final}")
     
-    return metrics_dict, dit_imputation
+    return metrics_dict, imputation_tensor
 
 
 def build_neighborhood_from_distance(adata, pred_layer, num_neighs = 6):
@@ -730,11 +711,14 @@ def mask_extreme_prediction(list_nn):
             list_nn_masked[i][j][0][:] = 0
     return list_nn_masked
     
-def get_mask_extreme_completion(adata, mask, genes):
+def get_mask_extreme_completion(adata, mask, genes, args):
     mask_extreme_completion = copy.deepcopy(mask)
     imp_values = adata.layers["mask"] #True en los valores reales y False en los valores imputados
     mask_extreme_completion[imp_values] = 1
-    #mask_extreme_completion[:,:,0:] = 1 #TODO: eliminar
+    
+    if args.partial:
+        mask_extreme_completion[:,:,0:] = 1 #TODO: eliminar (descomentar para completion parcial)
+    
     mask_extreme_completion[:,:,1:] = 0
     genes = np.array(genes)[:,np.newaxis]
     mask_extreme_completion = mask_extreme_completion*genes
@@ -840,8 +824,6 @@ def add_noise(inputs, noise_factor=0.01):
     noise = noise_factor * torch.randn_like(inputs)
     return inputs + noise
 
-
-
 # Load data
 from spared.filtering import *
 from spared.layer_operations import *
@@ -851,9 +833,8 @@ from tqdm import tqdm
 from spared.gene_features import *
 
 
-def get_new_adatas(path):
-    dataset_name = path.split("/")[-3]
-    
+def get_new_adatas(path, args):
+    dataset_name = args.dataset
     dataset = get_dataset(dataset_name)
     adata = dataset.adata 
     param_dict = dataset.param_dict
@@ -868,7 +849,6 @@ def get_new_adatas(path):
     raw_adata = ad.read_h5ad(path)
     #breakpoint()
     #adata = filter_dataset(raw_adata, param_dict)
-    #breakpoint()
     adata = raw_adata.copy()
     adata = get_exp_frac(adata)
     adata = get_glob_exp_frac(adata)
@@ -877,7 +857,7 @@ def get_new_adatas(path):
     adata = log1p_transformation(adata, from_layer='tpm', to_layer='log1p')
     adata = denoising.median_cleaner(adata, from_layer='log1p', to_layer='d_log1p', n_hops=4, hex_geometry=param_dict["hex_geometry"])
     adata = gene_features.compute_moran(adata, hex_geometry=param_dict["hex_geometry"], from_layer='d_log1p') 
-    total_genes = adata.shape[1]
+    total_genes = 1024
     adata = filtering.filter_by_moran(adata, n_keep=total_genes, from_layer='d_log1p')
     adata = combat_transformation(adata, batch_key=param_dict['combat_key'], from_layer='log1p', to_layer='c_log1p')
     adata = combat_transformation(adata, batch_key=param_dict['combat_key'], from_layer='d_log1p', to_layer='c_d_log1p')
@@ -886,10 +866,9 @@ def get_new_adatas(path):
     adata = get_deltas(adata, from_layer='c_log1p', to_layer='c_deltas')
     adata = get_deltas(adata, from_layer='c_d_log1p', to_layer='c_d_deltas')
     adata.layers['mask'] = adata.layers['tpm'] != 0
-    adata, _  = denoising.spackle_cleaner(adata=adata, dataset=dataset_name, from_layer="c_d_log1p", to_layer="c_t_log1p", device = "cuda")
+    adata, _  = denoising.spackle_cleaner(adata=adata, dataset=dataset_name, from_layer="c_d_log1p", to_layer="c_t_log1p", device = "cuda:7")
     adata = get_deltas(adata, from_layer='c_t_log1p', to_layer='c_t_deltas')   
     #dict_genes[dataset_name] = adata.shape[1]
-    adata.write(f'/home/dvegaa/ST_Diffusion/stDiff_Spared/adata_1024/{dataset_name}_1024.h5ad')
     
     return adata
             
@@ -948,5 +927,5 @@ def get_1204_adata(adata, adata_1024, genes):
     for gene in tqdm(genes_to_add):
         adata_gene = adata_1024[:, adata_1024.var["gene_ids"] == gene]
         adata = ad.concat([adata, adata_gene], axis=1, merge="same")
-
+    
     return adata

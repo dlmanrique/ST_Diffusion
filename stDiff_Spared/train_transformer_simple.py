@@ -65,7 +65,7 @@ for path in path_list:
             path_dataset = path
            
 #path_dataset = '/home/dvegaa/ST_Diffusion/stDiff_Spared/spared_stdiff/processed_data/mirzazadeh_data/mirzazadeh_mouse_brain/2023-12-04-20-32-05/adata_raw.h5ad'   
-#adata, num_genes = get_new_adatas(path_dataset)
+#adata, num_genes = get_new_adatas(path_dataset, args)
 
 dataset = get_dataset(args.dataset)
 adata_128 = dataset.adata 
@@ -90,20 +90,10 @@ for gene in genes_1024:
     else:
         genes_evaluate.append(0)
 
+#breakpoint()
 gene_weights = torch.tensor(genes_evaluate, dtype=torch.float32)
 #param_dict = dataset.param_dict
 model_autoencoder = None
-#list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
-#data = copy.deepcopy(list_nn)
-
-# Apply the function to all tensors in the dictionary
-#for key in list_nn.keys():
-#    for spot in range(len(list_nn[key])):
-#        list_nn[key][spot] = torch.roll(list_nn[key][spot], shifts=-1, dims=0)
-
-#dataset_names = [args.dataset]
-#train_data, val_data, test_data, max_value, min_value = join_dataset(args=args, dataset_names=dataset_names, pred_layer=pred_layer)
-#data, min_value, max_value = get_autoencoder_data(adata, args.prediction_layer, args)
 list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
 data = copy.deepcopy(list_nn)
 
@@ -117,7 +107,7 @@ if "test" in splits:
 
     mask_extreme = np.zeros((test_tensor.shape[0], 1024, 7))
     #mask 1024
-    mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate)
+    mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate, args)
     #mask_extreme_completion_test = torch.tensor(mask_extreme_completion_test[:,:,0])
     mask_extreme_completion_test = torch.tensor(mask_extreme_completion_test).permute(0,2,1)
 
@@ -130,7 +120,7 @@ if "test" in splits:
 train_tensor = torch.stack([torch.tensor(arr) for arr in train_data])  
 mask_extreme = np.zeros((train_tensor.shape[0], 1024, 7))
 #mask 1024
-mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate)
+mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate, args)
 mask_extreme_completion_train = torch.tensor(mask_extreme_completion_train).permute(0,2,1)
 
 #mask 128
@@ -140,7 +130,7 @@ mask_extreme_completion_train = torch.tensor(mask_extreme_completion_train).perm
 val_tensor = torch.stack([torch.tensor(arr) for arr in val_data])
 mask_extreme = np.zeros((val_tensor.shape[0], 1024, 7))
 #mask 1024
-mask_extreme_completion_val = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate)
+mask_extreme_completion_val = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate, args)
 mask_extreme_completion_val = torch.tensor(mask_extreme_completion_val).permute(0,2,1)
 
 #mask 128
@@ -208,6 +198,7 @@ if "test" not in splits:
     #adata_test = adata_128[adata_128.obs["split"] == "val"]
     max_test = max_min_enc["val"][0].item()
     min_test = max_min_enc["val"][1].item()
+    mask_extreme_completion_test = mask_extreme_completion_val
 else:
     test_split = "test"
     adata_test = adata[adata.obs["split"] == "test"]
@@ -248,9 +239,9 @@ auto_data_array = np.stack(auto_data, axis=0)
 gt = torch.tensor(adata_test.layers[args.prediction_layer])
 pred = torch.tensor(auto_data_array)
 #weights_test = gene_weights.unsqueeze(0).repeat(gt.size(0), 1)
-breakpoint()
 mask_boolean = mask_extreme_completion_test.bool()
 mask_boolean = mask_boolean[:,0,:]
+
 #MSE
 mse = F.mse_loss(gt[mask_boolean], pred[mask_boolean])
 #mse = F.mse_loss(gt, pred[:,0,:])

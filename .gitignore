@@ -13,3 +13,7 @@ stDiff_Spared/lstm_models/
 stDiff_Spared/adata_1024/
 stDiff_Spared/imput_results/
 stDiff_Spared/lightning_logs/
+stDiff_Spared/adata_1024_old.zip
+stDiff_Spared/qualitative_results/
+stDiff_Spared/*.sh
+stDiff_Spared/baseline_results/
