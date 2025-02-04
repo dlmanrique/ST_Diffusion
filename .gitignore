@@ -20,3 +20,4 @@ stDiff_Spared_v2/predictions_stnet/
 stDiff_Spared_v2/qualitative_results/
 stDiff_Spared_v2/datasets
 stDiff_Spared_v2/Pretrained_Encoders_Autoencoders
+stDiff_Spared_v2/__pycache__
