@@ -131,7 +131,7 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
         xt_shape = data.all_data.all_st_data_shape
 
     # inference using test split
-    imputation = sample_stDiff(model,
+    imputation, all_timesteps_pred = sample_stDiff(model,
                         dataloader=dataloader,
                         noise_scheduler=noise_scheduler,
                         x_t_shape=xt_shape,

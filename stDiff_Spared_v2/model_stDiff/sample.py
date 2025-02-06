@@ -73,5 +73,5 @@ def sample_stDiff(model,
         all_timesteps_pred.append(x_t)
 
     recon_x = x_t.detach().cpu()
-    return recon_x
+    return recon_x, all_timesteps_pred
 
