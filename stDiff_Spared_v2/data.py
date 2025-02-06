@@ -118,7 +118,7 @@ class stLDMDataset(torch.utils.data.Dataset):
             self.patch_features = torch.load(features_path)
 
         else:
-            print(f"Calculating image features for {self.args.dataset}/{self.split_name} using {self.args.image_encoder} model")          
+            print(f"Calculating image features for {self.args.dataset}/{self.split_name} using {self.args.image_encoder} model")        
             flat_patches = self.adata.obsm[f'patches_scale_1.0']
             patches = flat_patches.reshape((-1, 224, 224, 3))
             patches = np.array(patches) / 255
@@ -127,8 +127,11 @@ class stLDMDataset(torch.utils.data.Dataset):
             patch_features = []
 
             for batch in tqdm(dataloader):
-                batch = batch.to('cuda').float()                                  
-                batch_output = self.image_encoder(batch)    
+                batch = batch.to('cuda').float()
+                if self.args.image_encoder == 'conch':
+                    batch_output = self.image_encoder.encode_image(batch, proj_contrast=False, normalize=False)
+                else:                                  
+                    batch_output = self.image_encoder(batch)    
                 patch_features.append(batch_output)
 
             self.patch_features = torch.cat(patch_features, dim=0)

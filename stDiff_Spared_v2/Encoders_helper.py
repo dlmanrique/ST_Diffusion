@@ -15,13 +15,28 @@ class ImageEncoder():
         if self.encoder_name == 'uni':
             from Latents.Images_encoders.uni import UniEncoder
             encoder_class =  UniEncoder()
+        
+        elif self.encoder_name == 'uni2-h':
+            from Latents.Images_encoders.uni import UniEncoder2
+            encoder_class =  UniEncoder2()
 
         elif self.encoder_name == 'shufflenet':
             #Debo buscar a partir del name los pesos del modelo
             from Latents.Images_encoders.shuffenet import ShuffenetEncoder 
-            
             model_weights_path = os.path.join('Pretrained_Encoders_Autoencoders', 'Images_encoders', self.encoder_name, self.dataset, 'image_encoder.ckpt')
             encoder_class =  ShuffenetEncoder(model_weights_path, self.genes_number)
+            
+        elif self.encoder_name == 'conch':
+            from Latents.Images_encoders.conch import CONCHEncoder
+            encoder_class = CONCHEncoder()
+        
+        elif self.encoder_name == 'virchow':
+            from Latents.Images_encoders.virchow import Virchow
+            encoder_class = Virchow()
+
+        elif self.encoder_name == 'virchow2':
+            from Latents.Images_encoders.virchow import Virchow2
+            encoder_class = Virchow2()
             
         else:
             raise ValueError('The image encoder not exist')

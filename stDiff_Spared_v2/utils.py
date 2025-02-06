@@ -36,8 +36,8 @@ def get_main_parser():
     parser.add_argument("--adjust_loss",                    type=str2bool,          default=True,                            help='If True the loss is obtained only on masked data. If False the loss takes into account the entire set of genes and spots.')
     parser.add_argument("--scheduler",                      type=str2bool,          default=True,                            help='Whether to use LR scheduler or not.')
     # Image encoder and Gene Autoencoder parameters ##########################################################################################################################################
-    parser.add_argument('--image_encoder',                  type=str,               default='uni',                           help='Name of the image encoder to use. (uni, shufflenet)')
-    parser.add_argument('--gene_autoencoder',               type=str,               default=None,                            help='Name of the gene autoencoder to use. Only one for now: Transformer_encoder_mlp_decoder_v1')
+    parser.add_argument('--image_encoder',                  type=str,               default='uni',                           help='Name of the image encoder to use. (uni, uni2-h, shufflenet, conch, virchow, virchow2)')
+    parser.add_argument('--gene_autoencoder',               type=str,               default='Transformer_encoder_mlp_decoder_v1',                            help='Name of the gene autoencoder to use. Only one for now: Transformer_encoder_mlp_decoder_v1')
     ##########################################################################################################################################################################################
     parser.add_argument('--debbug_wandb',                   type=str2bool,          default=False,                           help='Log in debbugs wandb')
     return parser
