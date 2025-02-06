@@ -91,7 +91,6 @@ def main():
         wandb_logger=wandb,
         args=args,
         gene_autoencoder=gene_autoencoder_model,
-        image_encoder=image_encoder_model,
         save_path=save_path,
         device=device,
         exp_name=exp_name

@@ -21,3 +21,4 @@ stDiff_Spared_v2/qualitative_results/
 stDiff_Spared_v2/datasets
 stDiff_Spared_v2/Pretrained_Encoders_Autoencoders
 assets/
+stDiff_Spared_v2/__pycache__
