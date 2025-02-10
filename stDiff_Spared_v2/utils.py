@@ -206,6 +206,6 @@ def inference_function(data, model, diffusion_steps, device, args, model_autoenc
 
     imputation_tensor = torch.tensor(imputation_tensor, dtype=torch.float32)
 
-    metrics_dict = get_metrics(log1p_data, imputation_tensor.to(device), test_mask) 
+    metrics_dict = get_metrics(log1p_data, imputation_tensor.to(device), test_mask.to(device)) 
     
     return metrics_dict, imputation_tensor

@@ -196,7 +196,8 @@ class stLDMDataset(torch.utils.data.Dataset):
                                             "exp_matrix": exp_matrix.squeeze(0), 
                                             "encoded_exp_matrix": encoded_exp_matrix.squeeze(0).detach().cpu(),
                                             "patches": self.patch_features[nn_indices,:].detach().cpu(),
-                                            "exp_mask": great_mask}
+                                            "exp_mask": great_mask.detach().cpu()}
+                
             else:
                 all_neighborhoods[str(idx)] = {"spot_id": spot_name, 
                                             "exp_matrix": exp_matrix.squeeze(), 
@@ -332,7 +333,8 @@ class SpaREDData():
         self.load_data()
         # Sort genes in adatas
         self.sort_adatas()
-
+        # Get indexes/location of important genes in 1024-data after sorting
+        self.gene_weights = torch.tensor(np.isin(self.full_adata.var['gene_ids'].unique(), self.spared_genes_array))
         # Get average values for 1024-genes adata or 128-genes adata if pred layer is based on deltas
         # Always work with this layer
         self.layer_for_test = args.pred_layer
@@ -340,6 +342,10 @@ class SpaREDData():
             self.layer_for_test = args.pred_layer.rsplit("_", 1)[0] + "_log1p"
             if self.autoencoder:
                 self.average_vals = torch.tensor(self.full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
+                #og_average_vals = torch.tensor(self.original_full_adata.var[f"{self.layer_for_test}_avg_exp"])
+                #self.average_vals = torch.zeros(self.gene_weights.shape, dtype=torch.float64)
+                #self.average_vals[self.gene_weights] = og_average_vals
+                #self.average_vals = self.average_vals.unsqueeze(0)
             else:
                 self.average_vals = torch.tensor(self.original_full_adata.var[f"{self.layer_for_test}_avg_exp"]).unsqueeze(0)
 
@@ -351,7 +357,9 @@ class SpaREDData():
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
         self.test_data = stLDMDataset(self.args, self.spared_test, "test", self.spared_genes_array,
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
-        self.all_data = stLDMDataset(self.args, self.spared_all, "all", self.spared_genes_array,
+        # Only create split of full dataset if needed for visualizations
+        if args.visualizations:
+            self.all_data = stLDMDataset(self.args, self.spared_all, "all", self.spared_genes_array,
                                         self.autoencoder, self.image_encoder_model, self.image_transforms)
         
 
@@ -366,7 +374,7 @@ class SpaREDData():
         # Load original SpaRED adata 
         self.original_adata_path = f"datasets/original/{self.dataset_name}.h5ad"
         self.original_full_adata = ad.read_h5ad(self.original_adata_path)
-
+        
         # Get array of genes of interest
         self.spared_genes_array = self.original_full_adata.var['gene_ids'].unique()
         self.gene_comprobation = torch.tensor(np.isin(self.full_adata.var['gene_ids'].unique(), self.spared_genes_array))
@@ -425,16 +433,16 @@ class SpaREDData():
         # item is a dictionary with keys ['spot_id', 'exp_matrix', 'exp_mask', 'encoded_exp_matrix', 'condition_matrix', 'condition_mask']
         # keys used during train: ['encoded_exp_matrix', 'condition_matrix', 'condition_mask']
         generator = torch.Generator(device='cuda')
-        return DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, drop_last=False, generator=generator) #, num_workers=self.num_workers)
+        return DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, drop_last=False, generator=generator, pin_memory=True) #, num_workers=self.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False, drop_last=False) #, num_workers=self.num_workers)
+        return DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False, drop_last=False, pin_memory=True) #, num_workers=self.num_workers)
 
     def test_dataloader(self):
-        return DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False, drop_last=False) #, num_workers=self.num_workers)
+        return DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False, drop_last=False, pin_memory=True) #, num_workers=self.num_workers)
 
     def all_dataloader(self):
-        return DataLoader(self.all_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
+        return DataLoader(self.all_data, batch_size=self.batch_size, shuffle=False, drop_last=False, pin_memory=True)
     
 
 if __name__ == "__main__":
