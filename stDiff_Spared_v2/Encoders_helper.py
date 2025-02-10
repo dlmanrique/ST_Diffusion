@@ -38,14 +38,24 @@ class ImageEncoder():
         
 
 class GeneAutoencoder():
-    def __init__(self, name, dataset):
+    def __init__(self, name, dataset, pred_layer):
         self.name = name
-        self.autoencoder_path = os.path.join(
-            "Pretrained_Encoders_Autoencoders", 
-            "Genes_Autoencoders", 
-            name, 
-            dataset, 
-            "autoencoder_model.ckpt")
+        if pred_layer == "c_t_deltas":
+            self.autoencoder_path = os.path.join(
+                "Pretrained_Encoders_Autoencoders", 
+                "Genes_Autoencoders", 
+                name, 
+                dataset, 
+                "autoencoder_model.ckpt")
+        elif pred_layer == "c_dif_deltas":
+            self.autoencoder_path = os.path.join(
+                "Pretrained_Encoders_Autoencoders", 
+                "Genes_Autoencoders", 
+                "AE_c_dif_deltas",  
+                dataset, 
+                "autoencoder_model.ckpt")
+        else:
+            print(f"No autoencoder available for layer {pred_layer}.")
 
     def get_gene_autoencoder(self, configs: dict):
         if self.name == "Transformer_encoder_mlp_decoder_v1":
