@@ -50,6 +50,7 @@ def main():
                'num_heads':2}
     
     gene_autoencoder_model = None
+
     if args.gene_autoencoder:
         gene_autoencoder = GeneAutoencoder(args.gene_autoencoder, args.dataset)
         gene_autoencoder_model = gene_autoencoder.get_gene_autoencoder(configs = configs)
