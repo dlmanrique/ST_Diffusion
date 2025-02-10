@@ -1,4 +1,6 @@
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset mirzazadeh_mouse_brain --train False --test False --debbug_wandb True
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset villacampa_mouse_brain --train False --test False --debbug_wandb True
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset mirzazadeh_human_small_intestine --train False --test False --debbug_wandb True
-CUDA_VISIBLE_DEVICES=3 python train_image_to_genes.py --num_neighs -1 --dataset vicari_human_striatium --train False --test False --debbug_wandb True
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset villacampa_lung_organoid --image_encoder virchow
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset 10xgenomic_mouse_brain_sagittal_posterior --image_encoder virchow
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset mirzazadeh_mouse_bone --image_encoder virchow
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset villacampa_lung_organoid --image_encoder virchow2
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset 10xgenomic_mouse_brain_sagittal_posterior --image_encoder virchow2
+CUDA_VISIBLE_DEVICES=2 python train_image_to_genes.py --dataset mirzazadeh_mouse_bone --image_encoder virchow2

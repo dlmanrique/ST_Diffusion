@@ -55,6 +55,7 @@ def sample_stDiff(model,
     x_t = torch.randn(x_t_shape).to(device) # Ruido inicial al cual le voy quitando hasta llegar a mi st_data
     timesteps = list(range(num_step))[::-1] # Lista de pasos reversos para hacer la inferencia (remocion de ruido)
     
+    all_timesteps_pred = []
     ts = tqdm(timesteps)
     for t_idx, time in enumerate(ts):
         ts.set_description_str(desc=f'time: {time}')
@@ -69,7 +70,7 @@ def sample_stDiff(model,
             x_t, _ = noise_scheduler.step(model_output,  # noise
                                             torch.from_numpy(np.array(time)).long().to(device),
                                             x_t)
-
+        all_timesteps_pred.append(x_t)
 
     recon_x = x_t.detach().cpu()
     return recon_x
