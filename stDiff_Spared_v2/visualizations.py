@@ -8,7 +8,7 @@ import squidpy as sq
 import argparse
 import os
 
-def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, experiment_name = 'results', set_name = '', model2select_genes='diffusion', metric2select_genes='mse', consider_imputed_values=False):
+def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, experiment_name = 'results', set_name = '', model2select_genes='diffusion', metric2select_genes='mse', consider_imputed_values=False, sota_pred_layer=None):
     """
     This function receives a slide adata and the names of the prediction, groundtruth and masking layers 
     and logs the visualizations for the top and bottom genes
@@ -30,29 +30,33 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
         order_dict[gene] = i
 
     # Set gt layer
-    gt_layer = "c_t_log1p"
+    gt_layer = "c_dif_log1p"
     # Set diffusion pred layer
     diffusion_pred_layer = "diffusion_preds"
-    # Set stnet pred layer
-    stnet_pred_layer = "stnet_preds"
 
     if not consider_imputed_values:
         # Create real layers for only plot real values
         gt_real = np.where(slide_adata.layers[input_mask_layer], slide_adata.layers[gt_layer], np.nan)
-        diffusion_real = np.where(slide_adata.layers[input_mask_layer], slide_adata.layers[diffusion_pred_layer], np.nan)
-        stnet_real = np.where(slide_adata.layers[input_mask_layer], slide_adata.layers[stnet_pred_layer], np.nan)
         gt_layer = "gt_real"
-        diffusion_pred_layer = "diffusion_real"
-        stnet_pred_layer = "stnet_real"
         slide_adata.layers[gt_layer] = gt_real
+        
+        diffusion_real = np.where(slide_adata.layers[input_mask_layer], slide_adata.layers[diffusion_pred_layer], np.nan)
+        diffusion_pred_layer = "diffusion_real"
         slide_adata.layers[diffusion_pred_layer] = diffusion_real
-        slide_adata.layers[stnet_pred_layer] = stnet_real
 
+        if sota_pred_layer is not None:
+            sota_real = np.where(slide_adata.layers[input_mask_layer], slide_adata.layers[sota_pred_layer], np.nan)
+            sota_pred_layer = "sota_real"
+            slide_adata.layers[sota_pred_layer] = sota_real
+        
     # Declare figure TODO: modify number of columns if needed (ncols = gt + # of pred methods + linear plot)
-    num_cols = 4
+    if sota_pred_layer is not None:
+        num_cols = 4
+    else:
+        num_cols = 3
     fig, ax = plt.subplots(nrows=len(genes), ncols=num_cols, layout='constrained')
-    fig.set_size_inches(22, 4 * len(genes))
-
+    fig.set_size_inches(num_cols * 5, len(genes) * 4)
+    
     # Iterate over the genes
     for g in genes: 
 
@@ -66,34 +70,38 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
         gene_min_diffusion = np.nanmin(slide_adata[:, g].layers[diffusion_pred_layer])
         gene_max_diffusion = np.nanmax(slide_adata[:, g].layers[diffusion_pred_layer])
 
-        gene_min_stnet = np.nanmin(slide_adata[:, g].layers[stnet_pred_layer]) 
-        gene_max_stnet = np.nanmax(slide_adata[:, g].layers[stnet_pred_layer])
-        
-        gene_min = min([gene_min_gt, gene_min_diffusion, gene_min_stnet])
-        gene_max = max([gene_max_gt, gene_max_diffusion, gene_max_stnet])
+        gene_min = min([gene_min_gt, gene_min_diffusion])
+        gene_max = max([gene_max_gt, gene_max_diffusion])
 
-        # Set PCC
-        pcc_stnet = str(round(slide_adata.var["stnet_pcc_test"][g], 3))
-        pcc_diffusion = str(round(slide_adata.var["diffusion_pcc_test"][g], 3))
+        if sota_pred_layer is not None:
+            gene_min_sota = np.nanmin(slide_adata[:, g].layers[sota_pred_layer]) 
+            gene_max_sota = np.nanmax(slide_adata[:, g].layers[sota_pred_layer])
+
+            gene_min = min([gene_min_gt, gene_min_diffusion, gene_min_sota])
+            gene_max = max([gene_max_gt, gene_max_diffusion, gene_max_sota])
+
+            mse_sota = str(round(slide_adata.var["sota_mse_test"][g], 3))
+            pcc_sota = str(round(slide_adata.var["sota_pcc_test"][g], 3))
+            norm_sota = matplotlib.colors.Normalize(vmin=gene_min_sota, vmax=gene_max_sota)
         
-        # Set MSE
-        mse_stnet = str(round(slide_adata.var["stnet_mse_test"][g], 3))
         mse_diffusion = str(round(slide_adata.var["diffusion_mse_test"][g], 3))
+        pcc_diffusion = str(round(slide_adata.var["diffusion_pcc_test"][g], 3))
 
         # Define color normalization
         norm = matplotlib.colors.Normalize(vmin=gene_min, vmax=gene_max)
         norm_gt = matplotlib.colors.Normalize(vmin=gene_min_gt, vmax=gene_max_gt)
-        norm_stnet = matplotlib.colors.Normalize(vmin=gene_min_stnet, vmax=gene_max_stnet)
         norm_diffusion = matplotlib.colors.Normalize(vmin=gene_min_diffusion, vmax=gene_max_diffusion)
                 
         # Plot layers
-        sq.pl.spatial_scatter(slide_adata, color=[g], layer=gt_layer, fig=fig, ax=ax[row,0], cmap='jet', norm=norm, colorbar=True, title="")
-        sq.pl.spatial_scatter(slide_adata, color=[g], layer=diffusion_pred_layer, fig=fig, ax=ax[row,1], cmap='jet', norm=norm, colorbar=False, title="")
-        sq.pl.spatial_scatter(slide_adata, color=[g], layer=stnet_pred_layer, fig=fig, ax=ax[row,2], cmap='jet', norm=norm, colorbar=False, title="")
+        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=gt_layer, fig=fig, ax=ax[row,0], cmap='jet', norm=norm_gt, colorbar=True, title="")
+        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=diffusion_pred_layer, fig=fig, ax=ax[row,1], cmap='jet', norm=norm_diffusion, colorbar=True, title="")
+        if sota_pred_layer is not None:
+            sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=sota_pred_layer, fig=fig, ax=ax[row,2], cmap='jet', norm=norm, colorbar=False, title="")
 
         # Set titles
         ax[row, 1].set_title(f'PCC = {pcc_diffusion} & MSE = {mse_diffusion}', fontsize='xx-large')
-        ax[row, 2].set_title(f'PCC = {pcc_stnet} & MSE = {mse_stnet}', fontsize='xx-large')
+        if sota_pred_layer is not None:
+            ax[row, 2].set_title(f'PCC = {pcc_sota} & MSE = {mse_sota}', fontsize='xx-large')
         
         # Set y labels
         slide_name = list(slide_adata.obs.slide_id.unique())[0]
@@ -113,17 +121,26 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
 
         # Define models prediction and ground truth (only true spots)
         true_gt = gene_adata.layers[gt_layer][gene_adata.layers[input_mask_layer]==True]
-        true_stnet_pred = gene_adata.layers[stnet_pred_layer][gene_adata.layers[input_mask_layer]==True]
+        if sota_pred_layer is not None:
+            true_sota_pred = gene_adata.layers[sota_pred_layer][gene_adata.layers[input_mask_layer]==True]
         true_diffusion_pred = gene_adata.layers[diffusion_pred_layer][gene_adata.layers[input_mask_layer]==True]
         
         # Plot gen predictions and ground truth
-        ax[row,3].plot(true_gt, true_gt, color="black", linestyle="-", label="Ground Truth")
-        ax[row,3].plot(true_gt, true_stnet_pred, color="orange", marker="o",  markersize=3, linestyle="None", label=f"stnet\nPCC = {pcc_stnet} & MSE = {mse_stnet}")
-        ax[row,3].plot(true_gt, true_diffusion_pred, color="green", marker="o",  markersize=3, linestyle="None", label=f"Diffusion\nPCC = {pcc_diffusion} & MSE = {mse_diffusion}")
-        ax[row,3].legend(markerfirst=3, framealpha=0.4, loc="center left", bbox_to_anchor=(1, 0.5))
-        ax[row,3].set_xlabel("Ground Truth")
-        ax[row,3].set_ylabel("Prediction")
-    
+        if sota_pred_layer is not None:
+            ax[row,3].plot(true_gt, true_gt, color="black", linestyle="-", label="Ground Truth")
+            ax[row,3].plot(true_gt, true_sota_pred, color="orange", marker="o",  markersize=3, linestyle="None", label=f"sota\nPCC = {pcc_sota} & MSE = {mse_sota}")
+            ax[row,3].plot(true_gt, true_diffusion_pred, color="green", marker="o",  markersize=3, linestyle="None", label=f"Diffusion\nPCC = {pcc_diffusion} & MSE = {mse_diffusion}")
+            ax[row,3].legend(markerfirst=3, framealpha=0.4, loc="center left", bbox_to_anchor=(1, 0.5))
+            ax[row,3].set_xlabel("Ground Truth")
+            ax[row,3].set_ylabel("Prediction")
+            
+        else:
+            ax[row,2].plot(true_gt, true_gt, color="black", linestyle="-", label="Ground Truth")
+            ax[row,2].plot(true_gt, true_diffusion_pred, color="green", marker="o",  markersize=3, linestyle="None", label=f"Diffusion\nPCC = {pcc_diffusion} & MSE = {mse_diffusion}")
+            ax[row,2].legend(markerfirst=3, framealpha=0.4, loc="center left", bbox_to_anchor=(1, 0.5))
+            ax[row,2].set_xlabel("Ground Truth")
+            ax[row,2].set_ylabel("Prediction")
+            
     
     # Format figure
     for i, axis in enumerate(ax.flatten()):
@@ -133,32 +150,35 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
             axis.spines['bottom'].set_visible(False)
             axis.spines['left'].set_visible(False)
     
-    # Set PCC
-    pcc_stnet = str(round(slide_adata.var["stnet_pcc_test"][genes[0]], 3))
-    pcc_diffusion = str(round(slide_adata.var["diffusion_pcc_test"][genes[0]], 3))
-    # Set MSE
-    mse_stnet = str(round(slide_adata.var["stnet_mse_test"][genes[0]], 3))
+    if sota_pred_layer is not None:
+        mse_sota = str(round(slide_adata.var["sota_mse_test"][genes[0]], 3))
+        pcc_sota = str(round(slide_adata.var["sota_pcc_test"][genes[0]], 3))
+    
     mse_diffusion = str(round(slide_adata.var["diffusion_mse_test"][genes[0]], 3))
+    pcc_diffusion = str(round(slide_adata.var["diffusion_pcc_test"][genes[0]], 3))
 
     # Set titles
     ax[0, 0].set_title('Ground Truth', fontsize='xx-large')
     ax[0, 1].set_title(f'Diffusion\nPCC = {pcc_diffusion} & MSE = {mse_diffusion}', fontsize='xx-large')
-    ax[0, 2].set_title(f'stnet\nPCC = {pcc_stnet} & MSE = {mse_stnet}', fontsize='xx-large')
-    ax[0, 3].set_title('Pred vs Trues', fontsize='xx-large')
+    if sota_pred_layer is not None:
+        ax[0, 2].set_title(f'sota\nPCC = {pcc_sota} & MSE = {mse_sota}', fontsize='xx-large')
+        ax[0, 3].set_title('Pred vs Trues', fontsize='xx-large')
+    else:
+        ax[0, 2].set_title('Pred vs Trues', fontsize='xx-large')
 
     fig_path = os.path.join('qualitative_results', dataset_name, experiment_name)
     os.makedirs(fig_path, exist_ok=True)
     fig.savefig(os.path.join(fig_path, f'{set_name}_{model2select_genes}_{metric2select_genes}.png'))
         
 
-def plot_pred_image(dataset_name, adata, stnet_preds: torch.Tensor, diffusion_preds: torch.Tensor, exp_name: str, n_genes: int = 3, slide = "", model2select_genes='diffusion', metric2select_genes='mse'):
+def plot_pred_image(dataset_name, adata, diffusion_preds: torch.Tensor, exp_name: str, n_genes: int = 3, slide = "", model2select_genes='diffusion', metric2select_genes='mse', sota_preds: torch.Tensor = None):
     """
-    This function receives the predictions of stnet and difussion model, as well as the gt and mask for visualizing the predictions comparison.
+    This function receives the predictions of sota and difussion model, as well as the gt and mask for visualizing the predictions comparison.
 
     Args:
         dataset_name (str): dataset name
         adata (AnnData): test adata
-        stnet_preds (torch.Tensor): stnet predictions
+        sota_preds (torch.Tensor): predictions from a sota model for comparison
         diffusion_preds (torch.Tensor): diffusion model predictions
         n_genes (int, optional): number of genes to plot (top and bottom genes).
         slide (str, optional): slide to plot. If none is given it plots the first slide of the test adata.
@@ -166,27 +186,29 @@ def plot_pred_image(dataset_name, adata, stnet_preds: torch.Tensor, diffusion_pr
     
     # Add predictions to adata
     adata.layers["diffusion_preds"] = np.array(diffusion_preds.cpu())
-    adata.layers["stnet_preds"] = np.array(stnet_preds.cpu())
+    if sota_preds is not None:
+        adata.layers["sota_preds"] = np.array(sota_preds.cpu())
 
-    # Get detailed metrics for stnet
-    stnet_detailed_metrics = get_metrics(
-        gt_mat = adata.layers["c_t_log1p"], 
-        pred_mat = adata.layers["stnet_preds"],
-        mask = adata.layers["mask"],
-        detailed=True
-    ) 
+        # Get detailed metrics for sota
+        sota_detailed_metrics = get_metrics(
+            gt_mat = adata.layers["c_dif_log1p"], 
+            pred_mat = adata.layers["sota_preds"],
+            mask = adata.layers["mask"],
+            detailed=True
+        ) 
 
     # Get detailed metrics from partition for diffusion
     diffusion_detailed_metrics = get_metrics(
-        gt_mat = adata.layers["c_t_log1p"], 
+        gt_mat = adata.layers["c_dif_log1p"], 
         pred_mat = adata.layers["diffusion_preds"],
         mask = adata.layers["mask"],
         detailed=True
     )
     
     # Add detalied metrics to adata
-    adata.var['stnet_pcc_test'] = stnet_detailed_metrics['detailed_PCC-Gene']
-    adata.var['stnet_mse_test'] = stnet_detailed_metrics['detailed_mse_gene']
+    if sota_preds is not None:
+        adata.var['sota_pcc_test'] = sota_detailed_metrics['detailed_PCC-Gene']
+        adata.var['sota_mse_test'] = sota_detailed_metrics['detailed_mse_gene']
     adata.var['diffusion_pcc_test'] = diffusion_detailed_metrics['detailed_PCC-Gene']
     adata.var['diffusion_mse_test'] = diffusion_detailed_metrics['detailed_mse_gene']
 
@@ -234,7 +256,13 @@ def plot_pred_image(dataset_name, adata, stnet_preds: torch.Tensor, diffusion_pr
 
     top_bottom = ["Top_Genes", "Bottom_Genes"]
 
+    if sota_preds is not None:
+        sota_pred_layer="sota_preds"
+    else:
+        sota_pred_layer=None
+
     print('Creating visualization plots ...')
+    
     for i, gene in enumerate(selected_genes):
         log_genes_for_slide(
             dataset_name=dataset_name,
@@ -246,21 +274,21 @@ def plot_pred_image(dataset_name, adata, stnet_preds: torch.Tensor, diffusion_pr
             model2select_genes=model2select_genes,
             metric2select_genes=metric2select_genes,
             consider_imputed_values=False,
+            sota_pred_layer=sota_pred_layer,
         )
 
 def visualize_predictions(dataset_name, adata, pred_data, exp_name):
 
-    # Get stnet predictions
-    stnet_preds = torch.load(os.path.join("predictions_stnet",f"{dataset_name}.pt"))
+    # Define here the sota preds if needed
 
     plot_pred_image(
         dataset_name = dataset_name,
         adata = adata,
-        stnet_preds = stnet_preds, 
         diffusion_preds = pred_data,
         exp_name = exp_name, 
         n_genes = 3, 
         slide = "",
         model2select_genes="diffusion",
         metric2select_genes="mse",
+        sota_preds=None
     )

@@ -22,3 +22,7 @@ stDiff_Spared_v2/datasets
 stDiff_Spared_v2/Pretrained_Encoders_Autoencoders
 assets/
 stDiff_Spared_v2/__pycache__
+stDiff_Spared_v2/Latents/Gene_Autoencoders/__pycache__/
+stDiff_Spared_v2/Latents/Images_encoders/__pycache__/
+stDiff_Spared_v2/Latents/Gene_Autoencoders/__pycache__/
+stDiff_Spared_v2/Latents/Images_encoders/__pycache__/

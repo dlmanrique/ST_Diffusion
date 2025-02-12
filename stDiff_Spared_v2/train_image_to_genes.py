@@ -158,7 +158,8 @@ def main():
                                 )
 
         #Visualization plots for predicted data
-        visualize_predictions(args.dataset, spared_data.spared_all, pred_data, exp_name)
+        pred_data_128 = pred_data[:,spared_data.gene_weights]
+        visualize_predictions(args.dataset, spared_data.original_full_adata, pred_data_128, exp_name)
 
 if __name__=='__main__':
 
