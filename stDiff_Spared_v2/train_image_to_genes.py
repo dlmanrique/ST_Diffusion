@@ -127,7 +127,7 @@ def main():
                                 process="val"
                                 )
         
-        test_dict, _ = inference_function(
+        test_dict, pred_data = inference_function(
                                 data=spared_data,
                                 model=model,
                                 diffusion_steps=args.sample_diffusion_steps,
@@ -143,7 +143,16 @@ def main():
         wandb.log({"Test_MSE_valid": valid_dict["MSE"], "Test_PCC_valid": valid_dict["PCC-Gene"]})
         wandb.log({"Test_MSE_test": test_dict["MSE"], "Test_PCC_test": test_dict["PCC-Gene"]})
 
-    if args.visualizations:
+        if args.visualizations:
+
+            #Visualization plots for predicted data
+            pred_data_128 = pred_data[:,spared_data.gene_weights]
+            test_adata_128 = spared_data.test_data.adata[:,spared_data.test_data.adata.var["gene_ids"].isin(spared_data.spared_genes_array)].copy()
+            if not "spatial" in test_adata_128.uns:
+                test_adata_128.uns["spatial"] = spared_data.original_full_adata.uns["spatial"]
+            visualize_predictions(args.dataset, test_adata_128, pred_data_128, exp_name)
+
+    elif args.visualizations:
 
         eval_set = "test" if spared_data.test_data_available else "val"
         
@@ -162,6 +171,8 @@ def main():
         #Visualization plots for predicted data
         pred_data_128 = pred_data[:,spared_data.gene_weights]
         test_adata_128 = spared_data.test_data.adata[:,spared_data.test_data.adata.var["gene_ids"].isin(spared_data.spared_genes_array)].copy()
+        if not "spatial" in test_adata_128.uns:
+            test_adata_128.uns["spatial"] = spared_data.original_full_adata.uns["spatial"]
         visualize_predictions(args.dataset, test_adata_128, pred_data_128, exp_name)
 
 if __name__=='__main__':
