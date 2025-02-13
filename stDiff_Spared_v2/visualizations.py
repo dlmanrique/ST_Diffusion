@@ -93,8 +93,8 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
         norm_diffusion = matplotlib.colors.Normalize(vmin=gene_min_diffusion, vmax=gene_max_diffusion)
                 
         # Plot layers
-        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=gt_layer, fig=fig, ax=ax[row,0], cmap='jet', norm=norm_gt, colorbar=True, title="")
-        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=diffusion_pred_layer, fig=fig, ax=ax[row,1], cmap='jet', norm=norm_diffusion, colorbar=True, title="")
+        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=gt_layer, fig=fig, ax=ax[row,0], cmap='jet', norm=norm, colorbar=True, title="")
+        sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=diffusion_pred_layer, fig=fig, ax=ax[row,1], cmap='jet', norm=norm, colorbar=False, title="")
         if sota_pred_layer is not None:
             sq.pl.spatial_scatter(slide_adata, color=[str(g)], layer=sota_pred_layer, fig=fig, ax=ax[row,2], cmap='jet', norm=norm, colorbar=False, title="")
 
@@ -105,7 +105,7 @@ def log_genes_for_slide(dataset_name, genes, slide_adata, input_mask_layer, expe
         
         # Set y labels
         slide_name = list(slide_adata.obs.slide_id.unique())[0]
-        ax[row,0].set_ylabel(f'{g}:\n{slide_name}\n', fontsize='xx-large')
+        ax[row,0].set_ylabel(f'{slide_adata.var.loc[g]["gene_ids"]}:\n{slide_name}\n', fontsize='xx-large')
         ax[row,0].set_xticks([])
         ax[row,0].set_yticks([])
         ax[row,1].set_ylabel('')
@@ -204,7 +204,7 @@ def plot_pred_image(dataset_name, adata, diffusion_preds: torch.Tensor, exp_name
         mask = adata.layers["mask"],
         detailed=True
     )
-    
+
     # Add detalied metrics to adata
     if sota_preds is not None:
         adata.var['sota_pcc_test'] = sota_detailed_metrics['detailed_PCC-Gene']

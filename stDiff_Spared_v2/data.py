@@ -405,17 +405,17 @@ class SpaREDData():
         adata_original_sorted = self.original_full_adata.copy()
         
         # Sort genes by index
-        adata_1024_sorted.var["original_index"] = adata_1024_sorted.var.index
+        adata_1024_sorted.var["new_index"] = adata_1024_sorted.var.index
         adata_1024_sorted.var = adata_1024_sorted.var.sort_values(by="gene_ids").reset_index(drop=True)
 
-        adata_original_sorted.var["original_index"] = adata_original_sorted.var.index
+        adata_original_sorted.var["new_index"] = adata_original_sorted.var.index
         adata_original_sorted.var = adata_original_sorted.var.sort_values(by="gene_ids").reset_index(drop=True)
 
         #Get indices
-        sorted_indices_1024 = adata_1024_sorted.var["original_index"].to_numpy()
+        sorted_indices_1024 = adata_1024_sorted.var["new_index"].to_numpy()
         sorted_indices_1024 = [int(idx) for idx in sorted_indices_1024]
         
-        sorted_indices_original = adata_original_sorted.var["original_index"].to_numpy()
+        sorted_indices_original = adata_original_sorted.var["new_index"].to_numpy()
         sorted_indices_original = [int(idx) for idx in sorted_indices_original]
 
         # Reorder all layers to match the new gene order

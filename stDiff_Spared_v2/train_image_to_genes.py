@@ -69,7 +69,7 @@ def main():
     # Here I have the input dim for the DiT model, 128 or 7,128
     input_size_dit = spared_data.train_data.DiT_input_dim
     image_features_dim = spared_data.train_data.image_features_dim
-
+    
     # Define the model
     model = DiT_stDiff(
         input_size=input_size_dit,  
@@ -144,9 +144,11 @@ def main():
         wandb.log({"Test_MSE_test": test_dict["MSE"], "Test_PCC_test": test_dict["PCC-Gene"]})
 
     if args.visualizations:
+
+        eval_set = "test" if spared_data.test_data_available else "val"
         
         # Get the predicted data
-        all_dict, pred_data = inference_function(
+        test_dict, pred_data = inference_function(
                                 data=spared_data,
                                 model=model,
                                 diffusion_steps=args.sample_diffusion_steps,
@@ -154,12 +156,13 @@ def main():
                                 args=args,
                                 model_autoencoder=gene_autoencoder_model,
                                 wandb_logger=wandb,
-                                process="all"
+                                process=eval_set
                                 )
 
         #Visualization plots for predicted data
         pred_data_128 = pred_data[:,spared_data.gene_weights]
-        visualize_predictions(args.dataset, spared_data.original_full_adata, pred_data_128, exp_name)
+        test_adata_128 = spared_data.test_data.adata[:,spared_data.test_data.adata.var["gene_ids"].isin(spared_data.spared_genes_array)].copy()
+        visualize_predictions(args.dataset, test_adata_128, pred_data_128, exp_name)
 
 if __name__=='__main__':
 
