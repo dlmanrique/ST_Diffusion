@@ -1,0 +1,27 @@
+Dataset,stDiff*,SpaCKLE,LGDist,SpaCKLE vs LGDist,stDiff vs LGDist
+villacampa_kidney_organoid,0.826,0.809,0.773,4.45,6.42
+villacampa_lung_organoid,0.7490000000000001,0.7559999999999999,0.583,22.88,22.16
+mirzazadeh_human_colon_p1,0.831,0.981,0.769,21.61,7.46
+fan_mouse_olfactory_bulb,0.49,0.669,0.456,31.84,6.94
+mirzazadeh_human_pediatric_brain_tumor_p2,0.7490000000000001,0.733,0.456,37.79,39.12
+10xgenomic_mouse_brain_sagittal_anterior,0.603,0.621,0.479,22.87,20.56
+10xgenomic_mouse_brain_coronal,0.61,0.638,0.509,20.22,16.56
+mirzazadeh_human_pediatric_brain_tumor_p1,0.474,0.201,0.159,20.9,66.46
+parigi_mouse_intestine,0.166,0.21899999999999997,0.08900000000000001,59.36,46.39
+10xgenomic_mouse_brain_sagittal_posterior,0.633,0.615,0.505,17.89,20.22
+mirzazadeh_human_colon_p2,0.765,0.94,0.26,72.34,66.01
+mirzazadeh_mouse_bone,0.66,0.524,0.348,33.59,47.27
+10xgenomic_human_breast_cancer,0.5770000000000001,0.836,0.426,49.04,26.17
+fan_mouse_brain_coronal,0.667,0.7120000000000001,0.537,24.58,19.49
+10xgenomic_human_brain,0.6729999999999999,0.6829999999999999,0.524,23.28,22.14
+abalo_human_squamous_cell_carcinoma,0.7040000000000001,0.8909999999999999,0.605,32.1,14.06
+mirzazadeh_human_small_intestine,2.189,1.9,1.129,40.58,48.42
+villacampa_mouse_brain,0.9209999999999999,0.8220000000000001,0.546,33.58,40.72
+mirzazadeh_human_prostate_cancer,0.826,0.7829999999999999,0.625,20.18,24.33
+mirzazadeh_mouse_brain_p1,0.621,0.6629999999999999,0.431,34.99,30.6
+mirzazadeh_mouse_brain_p2,0.71,0.6659999999999999,0.703,-5.56,0.99
+vicari_human_striatium,0.613,0.491,0.311,36.66,49.27 
+erickson_human_prostate_cancer_p1,0.775,0.700,0.996,-42.24,-28.52
+erickson_human_prostate_cancer_p2,1.591,0.550,0.715,-29.91,55.05
+mirzazadeh_mouse_brain,2.825,0.712,1.042,-46.49,63.10
+vicari_mouse_brain,0.770,0.756,1.327,-75.46,-72.33

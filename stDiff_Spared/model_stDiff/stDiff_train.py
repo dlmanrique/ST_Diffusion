@@ -7,12 +7,7 @@ from ray.air import session
 import os
 from .stDiff_scheduler import NoiseScheduler
 from utils import *
-import matplotlib.pyplot as plt
-import wandb
-import datetime 
-from spared.metrics import get_metrics
-from datetime import datetime
-from visualize_imputation import *
+from visualization_results.visualize_imputation import *
 
 # Get parser and parse arguments
 parser = get_main_parser()
@@ -185,7 +180,7 @@ def normal_train_stDiff(model,
         # compare MSE metrics and save best model
         if epoch % (num_epoch//10) == 0 and epoch != 0:
             #breakpoint()
-            metrics_dict, imputation_data = inference_function(adata=adata_valid,
+            metrics_dict, imputation_data, mse = inference_function(adata=adata_valid,
                                                                 dataloader=valid_dataloader, 
                                                                 data=valid_data, 
                                                                 masked_data=valid_masked_data, 

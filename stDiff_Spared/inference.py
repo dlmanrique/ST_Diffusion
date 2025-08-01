@@ -6,12 +6,12 @@ from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 from utils import *
-from visualize_imputation import *
+from visualization_results.visualize_imputation import *
 import wandb
 from datetime import datetime
 from Transformer_encoder_decoder import *
 from Transformer_simple import Transformer
-from baseline import adaptive_median_filter_pepper
+from baseline_results.baseline import adaptive_median_filter_pepper
 from scipy.sparse import csr_matrix
 
 warnings.filterwarnings('ignore')
@@ -27,9 +27,6 @@ seed = args.seed
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
-
-if args.vlo == False:
-    from spared_stdiff.datasets import get_dataset
 
 
 def main():
@@ -70,26 +67,23 @@ def main():
 
     
     # Get dataset
-    if args.vlo:
-        # Carga el archivo .h5ad
-        adata_128 = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
-    else:
-        dataset = get_dataset(args.dataset)
-        adata_128 = dataset.adata
+    #dataset = get_dataset(args.dataset)
+    #adata_128 = dataset.adata
+    adata_128 = ad.read_h5ad(f'/media/SSD0/pcardenasg2/c_dif_layers/datasets/original/{args.dataset}.h5ad')
 
     ### AUTOENCODER ADATA ###
     num_genes = adata_128.shape[1]
     
-    adata = ad.read_h5ad(f'/media/SSD4/dvegaa/ST_Diffusion/stDiff_Spared/adata_1024/{args.dataset}_1024.h5ad')
+    adata = ad.read_h5ad(f'/media/SSD0/pcardenasg2/c_dif_layers/datasets/1024/{args.dataset}_1024.h5ad')
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
 
-    # create mask for 128 genes
+    # Create mask for 128 genes
     genes_evaluate = []
     genes_128 = adata_128.var["gene_ids"].unique().tolist()
     genes_1024 = adata.var["gene_ids"].unique().tolist()
     
-    #Get updated 1024 adata
+    # Get updated 1024 adata
     adata, adata_128 = sort_adatas(adata=adata, adata_128=adata_128)
 
     genes_128 = adata_128.var["gene_ids"].unique().tolist()
@@ -105,7 +99,7 @@ def main():
     
     model_autoencoder = None
     
-    prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
+    prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", adata=adata_128, mask_prob=0.3, scale_factor=0.8)
     mask_exp_matrix(adata=adata_128, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
     
     #matrix input
@@ -115,19 +109,23 @@ def main():
     num_layers = 2
     n_heads = 2
     embedding_dim =  256
-    feedforward_dim = embedding_dim * 2
+    feedforward_dim = embedding_dim*2
     
     model_autoencoder = Transformer(input_dim=1024, 
-                    latent_dim=128, 
-                    output_dim=1024,
-                    embedding_dim=embedding_dim,
-                    num_layers=num_layers,
-                    num_heads=n_heads,
-                    lr=args.lr,
-                    gene_weights=gene_weights)
+                                    latent_dim=128, 
+                                    output_dim=1024,
+                                    embedding_dim=embedding_dim,
+                                    feedforward_dim=feedforward_dim,
+                                    num_layers=num_layers,
+                                    num_heads=n_heads,
+                                    lr=args.lr,
+                                    gene_weights=gene_weights)
     
-    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "autoencoder_model.ckpt") 
+    #checkpoint_path = os.path.join("/media/SSD4/dvegaa/autoencoder", f"{args.prediction_layer}", f"{args.dataset}", "autoencoder_model.ckpt") 
+    checkpoint_path = os.path.join("/media/SSD0/pcardenasg2/ST_Diffusion/stDiff_Spared_v2/transformer_autoencoders", f"{args.dataset}", "autoencoder_model.ckpt")
     
+    print(args.prediction_layer)
+
     checkpoint = torch.load(checkpoint_path)
     model_autoencoder.load_state_dict(checkpoint['state_dict'])
     model_autoencoder.to(device)
@@ -203,7 +201,9 @@ def main():
         mlp_ratio=4.0,
         dit_type='dit')
 
-    dit_path = os.path.join("Experiments", f"{args.dataset}", f"{args.dataset}_12_1024_0.0001_noise.pt")
+    dit_path = os.path.join("/media/SSD0/pcardenasg2/ST_Diffusion/completion_task", f"{args.dataset}", f"{args.dataset}_12_1024_0.0001_noise.pt")
+    #dit_path = "/media/SSD4/dvegaa/ST_Diffusion/stDiff_Spared/Experiments/2025-05-01-17-38-55/villacampa_lung_organoid_12_1024_0.0001_noise.pt"
+
     dit_state_dict = torch.load(dit_path)
     model.load_state_dict(dit_state_dict)
     model.to(device)
@@ -218,7 +218,7 @@ def main():
         max_enc = max_min_enc["val"][0]
         min_enc = max_min_enc["val"][1]
         
-    test_metrics, imputation_data = inference_function(adata=adata_test,
+    test_metrics, imputation_data, mse = inference_function(adata=adata_test,
                                                         dataloader=test_dataloader, 
                                                         data=st_data_test, 
                                                         masked_data=st_data_masked_test, 
@@ -235,39 +235,26 @@ def main():
                                                         max_enc=max_enc,
                                                         min_enc=min_enc)
     
-    """
-    adata_test[0].layers["diff_pred"] = imputation_data.detach().cpu().numpy()
-    genes_to_keep = adata_test[1].var["gene_ids"]
-    subset_mask = adata_test[0].var['gene_ids'].isin(genes_to_keep)
-    adata_subsampled = adata_test[0][:, subset_mask].copy()
     
-    # Agregar capa de medianas y sumarle el avg_tensor
-    #path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/villacampa_lung_organoid/2024-11-27-06-45-33/adata_2024-11-27-06-45-33.h5ad"
-    #path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/vicari_human_striatium/2024-11-27-07-14-09/adata_2024-11-27-07-14-09.h5ad"
-    path_medians = "/home/dvegaa/ST_Diffusion/stDiff_Spared/baseline_results/mirzazadeh_mouse_bone/2024-11-27-07-11-28/adata_2024-11-27-07-11-28.h5ad"
-    adata_visualization = ad.read_h5ad(path_medians)
-    format = args.prediction_layer.split("deltas")[0]
-    avg_tensor_128 = torch.tensor(adata_visualization.var[f"{format}log1p_avg_exp"]).view(1, adata_visualization.shape[1])
-    avg_tensor_128_np = avg_tensor_128.cpu().numpy()
-    avg_tensor_sparse = csr_matrix(avg_tensor_128_np)
-    avg_tensor_dense = avg_tensor_sparse.toarray() if isinstance(avg_tensor_sparse, csr_matrix) else avg_tensor_sparse
-    expanded_avg_tensor = np.broadcast_to(avg_tensor_dense, adata_visualization.layers["median_prediction_expression_matrix"].shape)
+    from get_prediction_layers import spackle_layer, get_prob_mse, get_prob_median_layer
+    from visualization_results.visualize_mse_probs import plot_mse_plot
+    if args.partial:
+        wandb.log({"Partial MSE":mse})
 
-    # Suma directa
-    adata_visualization.layers["median_prediction_expression_matrix"] += expanded_avg_tensor
-    if 'test' in splits:
-        adata_visualization = adata_visualization[adata_visualization.obs["split"]=="test"]
-    else:
-        adata_visualization = adata_visualization[adata_visualization.obs["split"]=="val"]
-        
-    adata_test[1].layers["median_pred"] = adata_visualization.layers["median_prediction_expression_matrix"]
-    adata_test[1].layers["diff_pred"] = adata_subsampled.layers["diff_pred"]
-    #torch.save(imputation_data, os.path.join('Predictions', f'predictions_{args.dataset}.pt'))
+    # Robustness experiment   
+    #spackle_layer(adata_test=adata_test, imputation_data=imputation_data, args=args)
+    adata_mse, list_probs = get_prob_mse(adata_test=adata_test, imputation_data=imputation_data, args=args)
+    #plot_mse_plot(adata=adata_mse, list_mse=list_probs, args=args)
+
+    from visualization_results.visualize_mask_completion import plot_pred_image
+    breakpoint()
+    plot_pred_image(adata=adata_mse, genes=["0", "1", "2", "3", "4", "5"], exp_name=args.dataset)
+
+    # Prob median visualization
+    #get_prob_median_layer(adata_test=adata_test, imputation_data=imputation_data, args=args)
+
+
     
-    from visualize_imputation import plot_pred_image
-    plot_pred_image(adata = adata_test[1], exp_name = args.dataset, n_genes = 3, slide = "")
-    """
-
 if __name__=='__main__':
     main()
 # Concatenate all latent representations

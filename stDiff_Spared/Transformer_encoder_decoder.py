@@ -8,7 +8,7 @@ import torch.nn as nn
 import math
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, input_dim, embedding_dim, latent_dim, num_heads, num_layers, dropout=0.1):
+    def __init__(self, input_dim, embedding_dim, feedforward_dim, latent_dim, num_heads, num_layers, dropout=0.1):
         super().__init__()
         self.encoder_projection = nn.Sequential(
             nn.Linear(input_dim, embedding_dim),
@@ -20,7 +20,7 @@ class TransformerEncoder(nn.Module):
         self.encoder_layer = nn.TransformerEncoderLayer(
             d_model=embedding_dim,
             nhead=num_heads,
-            dim_feedforward= 2 * embedding_dim,
+            dim_feedforward= feedforward_dim,
             dropout=dropout,
         )
         

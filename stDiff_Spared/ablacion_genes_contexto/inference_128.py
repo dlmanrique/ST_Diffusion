@@ -1,0 +1,244 @@
+import os
+import warnings
+import torch
+import scanpy as sc
+from model_stDiff.stDiff_model_2D import DiT_stDiff
+from model_stDiff.stDiff_train import normal_train_stDiff
+from process_stDiff.data_2D import *
+from utils import *
+from visualize_imputation import *
+import wandb
+from datetime import datetime
+from Transformer_encoder_decoder import *
+from Transformer_simple import Transformer
+from stDiff_Spared.baseline_results.baseline import adaptive_median_filter_pepper
+from scipy.sparse import csr_matrix
+
+warnings.filterwarnings('ignore')
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
+# Get parser and parse arguments
+parser = get_main_parser()
+args = parser.parse_args()
+args_dict = vars(args) #Not uses, maybe later usage
+
+# seed everything
+seed = args.seed
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
+if args.vlo == False:
+    from spared_stdiff.datasets import get_dataset
+
+def main():
+    ### Wandb 
+    wandb.login()
+    if args.debbug_wandb:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="debbugs", entity="spared_v2", name=exp_name + '_debbug')
+
+    else:
+        exp_name = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb.init(project="stDiff_Modelo_2D", entity="spared_v2", name=exp_name )
+    
+    wandb.config = {"lr": args.lr, "dataset": args.dataset}
+    wandb.log({"lr": args.lr, 
+               "dataset": args.dataset, 
+               "num_epoch": args.num_epoch, 
+               "num_heads": args.head,
+               "depth": args.depth, "hidden_size": args.hidden_size, 
+               "save_path": args.save_path, "loss_type": args.loss_type,
+               "concat_dim": args.concat_dim,
+               "masked_loss": args.masked_loss,
+               "model_type": args.model_type,
+               "scheduler": args.scheduler,
+               "layer": args.prediction_layer,
+               "normalizacion": args.normalization_type})
+    
+    ### Parameters
+    # Define the training parameters
+    lr = args.lr
+    depth = args.depth
+    num_epoch = args.num_epoch
+    diffusion_step = args.diffusion_steps
+    batch_size = args.batch_size
+    hidden_size = args.hidden_size
+    head = args.head
+    device = torch.device('cuda')
+
+    
+    # Get dataset
+    if args.vlo:
+        # Carga el archivo .h5ad
+        adata_128 = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
+    else:
+        dataset = get_dataset(args.dataset)
+        adata_128 = dataset.adata
+
+    ### AUTOENCODER ADATA ###
+    num_genes = adata_128.shape[1]
+    
+    splits = adata_128.obs["split"].unique().tolist()
+    pred_layer = args.prediction_layer
+
+    # create mask for 128 genes
+    genes_evaluate = []
+    genes_128 = adata_128.var["gene_ids"].unique().tolist()
+
+    for gene in genes_128:
+        if gene in genes_128:
+            genes_evaluate.append(1)
+        else:
+            genes_evaluate.append(0)
+            
+    gene_weights = torch.tensor(genes_evaluate, dtype=torch.float32)
+    
+    model_autoencoder = None
+    
+    prob_tensor = get_mask_prob_tensor(masking_method="prob_median", adata=adata_128, mask_prob=0.3, scale_factor=0.8)
+    mask_exp_matrix(adata=adata_128, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
+    
+    #matrix input
+    list_nn, max_min_enc = get_neigbors_dataset(adata_128, pred_layer, args.num_hops, model_autoencoder, args)
+   
+    #Transformer model
+    num_layers = 2
+    n_heads = 2
+    embedding_dim =  256
+    feedforward_dim = embedding_dim * 2
+    
+    model_autoencoder = Transformer(args=args,
+                                    input_dim=num_genes, 
+                                    latent_dim=num_genes, 
+                                    output_dim=num_genes,
+                                    embedding_dim=embedding_dim,
+                                    num_layers=num_layers,
+                                    num_heads=n_heads,
+                                    lr=args.lr,
+                                    gene_weights=gene_weights)
+    
+    checkpoint_path = os.path.join("autoencoder_128", f"{args.dataset}", "autoencoder_model.ckpt") 
+    
+    checkpoint = torch.load(checkpoint_path)
+    model_autoencoder.load_state_dict(checkpoint['state_dict'])
+    model_autoencoder.to(device)
+    
+    #matrix input
+    list_nn = encode_transformers(list_nn=list_nn, model_autoencoder=model_autoencoder, batch_size=args.batch_size)
+    list_nn_masked = mask_extreme_prediction(list_nn)
+    #####TODO: revisar
+    
+    ### Define splits
+    ## Train
+    st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
+    mask_extreme = np.zeros((mask_train.shape[0], mask_train.shape[1], mask_train.shape[2]))
+    mask_extreme_completion_train = get_mask_extreme_completion(adata_128[adata_128.obs["split"]=="train"], mask_extreme, genes_evaluate, args)
+    #mask_extreme_completion_train = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="train"], mask_train)
+    
+    ## Validation
+    st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
+    mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1], mask_test.shape[2]))
+    mask_extreme_completion_test = get_mask_extreme_completion(adata_128[adata_128.obs["split"]=="val"], mask_extreme, genes_evaluate, args)
+    #mask_extreme_completion_valid = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="val"], mask_valid)
+    
+    ## Test
+    if "test" in splits:
+        st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
+        mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1], mask_test.shape[2]))
+        mask_extreme_completion_test = get_mask_extreme_completion(adata_128[adata_128.obs["split"]=="test"], mask_extreme, genes_evaluate, args)
+        #mask_extreme_completion_test = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="test"], mask_test)
+    
+    # Definir un tensor de promedio en caso de predecir una capa delta
+    num_deltas = adata_128.shape[1]
+    if "deltas" in pred_layer:
+        format = args.prediction_layer.split("deltas")[0]
+        avg_tensor = torch.tensor(adata_128.var[f"{format}log1p_avg_exp"]).view(1, num_deltas)
+    else:
+        avg_tensor = None
+    
+    # Define train and valid dataloaders
+    train_dataloader = get_data_loader(
+        st_data_train, 
+        st_data_masked_train, 
+        mask_train,
+        batch_size=batch_size, 
+        is_shuffle=True)
+
+    test_dataloader = get_data_loader(
+        st_data_test, 
+        st_data_masked_test,
+        mask_test, 
+        batch_size=batch_size, 
+        is_shuffle=False)
+
+    # Define test dataloader if it exists
+    if 'test' in splits:
+        test_dataloader = get_data_loader(
+        st_data_test, 
+        st_data_masked_test,
+        mask_test, 
+        batch_size=batch_size, 
+        is_shuffle=False)
+        
+    ### DIFFUSION MODEL ##########################################################################
+    num_nn = st_data_train[0].shape
+
+    # Define the model
+    model = DiT_stDiff(
+        input_size=num_nn,  
+        hidden_size=hidden_size, 
+        depth=depth,
+        num_heads=head,
+        classes=6, 
+        args=args,
+        mlp_ratio=4.0,
+        dit_type='dit')
+
+    dit_path = os.path.join("/home/dvegaa/ST_Diffusion/stDiff_Spared/Experiments", f"{args.dataset}", f"{args.dataset}_128.pt")
+    dit_state_dict = torch.load(dit_path)
+    model.load_state_dict(dit_state_dict)
+    model.to(device)
+    model.eval()
+    
+    if 'test' in splits:
+        adata_test = [adata_128[adata_128.obs["split"]=="test"], adata_128[adata_128.obs["split"]=="test"]]
+        max_enc = max_min_enc["test"][0]
+        min_enc = max_min_enc["test"][1]
+    else:
+        adata_test = [adata_128[adata_128.obs["split"]=="val"], adata_128[adata_128.obs["split"]=="val"]]
+        max_enc = max_min_enc["val"][0]
+        min_enc = max_min_enc["val"][1]
+        
+    test_metrics, imputation_data, mse = inference_function(adata=adata_test,
+                                                        dataloader=test_dataloader, 
+                                                        data=st_data_test, 
+                                                        masked_data=st_data_masked_test, 
+                                                        mask=mask_test,
+                                                        mask_extreme_completion=mask_extreme_completion_test,
+                                                        max_norm = max_test,
+                                                        min_norm = min_test,
+                                                        avg_tensor = avg_tensor,
+                                                        model=model,
+                                                        diffusion_step=diffusion_step,
+                                                        device=device,
+                                                        args=args,
+                                                        model_decoder=model_autoencoder,
+                                                        max_enc=max_enc,
+                                                        min_enc=min_enc)
+    
+    
+    from get_prediction_layers import spackle_layer, get_prob_mse
+    from visualize_mse_probs import plot_mse_plot
+    if args.partial:
+        wandb.log({"Partial MSE":mse})
+        
+    #spackle_layer(adata_test=adata_test, imputation_data=imputation_data, args=args)
+    #adata_mse, list_probs = get_prob_mse(adata_test=adata_test, imputation_data=imputation_data, args=args)
+    #plot_mse_plot(adata=adata_mse, list_mse=list_probs, args=args)
+
+    
+if __name__=='__main__':
+    main()
+# Concatenate all latent representations
+#DiT_latent_representations = torch.cat(DiT_latent_representations, dim=0)

@@ -6,7 +6,7 @@ from model_stDiff.stDiff_model_2D import DiT_stDiff
 from model_stDiff.stDiff_train import normal_train_stDiff
 from process_stDiff.data_2D import *
 from utils import *
-from visualize_imputation import *
+from visualization_results.visualize_imputation import *
 import wandb
 from datetime import datetime
 from Transformer_encoder_decoder import *
@@ -25,10 +25,6 @@ seed = args.seed
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
-
-if args.vlo == False:
-    from spared_stdiff.datasets import get_dataset
-
 
 def main():
     ### Wandb 
@@ -69,22 +65,14 @@ def main():
 
     
     # Get dataset
-    if args.vlo:
-        # Carga el archivo .h5ad
-        adata_128 = sc.read_h5ad(os.path.join('Example_dataset', 'adata.h5ad'))
-    else:
-        dataset = get_dataset(args.dataset)
-        adata_128 = dataset.adata
-    # Masking
-    #prob_tensor = get_mask_prob_tensor(masking_method="mask_prob", dataset=dataset, mask_prob=0.3, scale_factor=0.8)
-    # Add neccesary masking layers in the adata object
-    #mask_exp_matrix(adata=adata, pred_layer=pred_layer, mask_prob_tensor=prob_tensor, device=device)
+    #dataset = get_dataset(args.dataset)
+    #adata_128 = dataset.adata
+    adata_128 = ad.read_h5ad(f"/media/SSD0/pcardenasg2/c_dif_layers/datasets/original/{args.dataset}.h5ad")
 
     ### AUTOENCODER ADATA ###
     num_genes = adata_128.shape[1]
-    #num_genes = 128
     
-    adata = ad.read_h5ad(f'/media/SSD4/dvegaa/ST_Diffusion/stDiff_Spared/adata_1024/{args.dataset}_1024.h5ad')
+    adata = ad.read_h5ad(f'/media/SSD0/pcardenasg2/c_dif_layers/datasets/1024/{args.dataset}_1024.h5ad')
     splits = adata.obs["split"].unique().tolist()
     pred_layer = args.prediction_layer
 
@@ -92,10 +80,6 @@ def main():
     genes_evaluate = []
     genes_128 = adata_128.var["gene_ids"].unique().tolist()
     genes_1024 = adata.var["gene_ids"].unique().tolist()
-    
-    #Get updated 1024 adata
-    #adata = get_1204_adata(adata=adata_128, adata_1024=adata, genes=genes_128)
-    #Sort adatas and get genes again
     adata, adata_128 = sort_adatas(adata=adata, adata_128=adata_128)
 
     genes_128 = adata_128.var["gene_ids"].unique().tolist()
@@ -112,8 +96,6 @@ def main():
     model_autoencoder = None
     #matrix input
     list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
-    #train, val, test
-    #[[7X1024],[7X1024], ....]
     
     #Transformer model
     num_layers = 2
@@ -122,16 +104,18 @@ def main():
     feedforward_dim = embedding_dim * 2
     
     model_autoencoder = Transformer(input_dim=1024, 
-                    latent_dim=128, 
-                    output_dim=1024,
-                    embedding_dim=embedding_dim,
-                    num_layers=num_layers,
-                    num_heads=n_heads,
-                    lr=args.lr,
-                    gene_weights=gene_weights)
-    
-    checkpoint_path = os.path.join("transformer_models", f"{args.dataset}", "autoencoder_model.ckpt") 
-    
+                                    latent_dim=128, 
+                                    output_dim=1024,
+                                    embedding_dim=embedding_dim,
+                                    feedforward_dim=feedforward_dim,
+                                    num_layers=num_layers,
+                                    num_heads=n_heads,
+                                    lr=args.lr,
+                                    gene_weights=gene_weights)
+                    
+    checkpoint_path = os.path.join("/media/SSD4/dvegaa/autoencoder/c_t_deltas", f"{args.dataset}", "autoencoder_model.ckpt") 
+    #checkpoint_path = os.path.join("/media/SSD0/pcardenasg2/ST_Diffusion/stDiff_Spared_v2/transformer_autoencoders", f"{args.dataset}", "autoencoder_model.ckpt")
+
     checkpoint = torch.load(checkpoint_path)
     model_autoencoder.load_state_dict(checkpoint['state_dict'])
     model_autoencoder.to(device)
@@ -145,11 +129,7 @@ def main():
     
     #matrix input
     list_nn = encode_transformers(list_nn=list_nn, model_autoencoder=model_autoencoder, batch_size=args.batch_size)
-    #7X128
-    
-    #vector input
-    #list_nn, max_min_enc = get_neigbors_dataset(adata, pred_layer, args.num_hops, model_autoencoder, args)
-    
+
     list_nn_masked = mask_extreme_prediction(list_nn) 
     #####TODO: revisar
     
@@ -158,21 +138,18 @@ def main():
     st_data_train, st_data_masked_train, mask_train, max_train, min_train = define_split_nn_mat(list_nn, list_nn_masked, "train", args)
     mask_extreme = np.zeros((mask_train.shape[0], mask_train.shape[1]*8, mask_train.shape[2]))
     mask_extreme_completion_train = get_mask_extreme_completion(adata[adata.obs["split"]=="train"], mask_extreme, genes_evaluate, args)
-    #mask_extreme_completion_train = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="train"], mask_train)
-    
+  
     ## Validation
     st_data_valid, st_data_masked_valid, mask_valid, max_valid, min_valid = define_split_nn_mat(list_nn, list_nn_masked, "val", args)
     mask_extreme = np.zeros((mask_valid.shape[0], mask_valid.shape[1]*8, mask_valid.shape[2]))
     mask_extreme_completion_valid = get_mask_extreme_completion(adata[adata.obs["split"]=="val"], mask_extreme, genes_evaluate, args)
-    #mask_extreme_completion_valid = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="val"], mask_valid)
-    
+   
     ## Test
     if "test" in splits:
         st_data_test, st_data_masked_test, mask_test, max_test, min_test = define_split_nn_mat(list_nn, list_nn_masked, "test", args)
         mask_extreme = np.zeros((mask_test.shape[0], mask_test.shape[1]*8, mask_test.shape[2]))
         mask_extreme_completion_test = get_mask_extreme_completion(adata[adata.obs["split"]=="test"], mask_extreme, genes_evaluate, args)
-        #mask_extreme_completion_test = get_mask_extreme_completion_128(adata_128[adata_128.obs["split"]=="test"], mask_test)
-    
+       
     # Definir un tensor de promedio en caso de predecir una capa delta
     num_deltas = adata.shape[1]
     if "deltas" in pred_layer:
@@ -258,7 +235,7 @@ def main():
     if "test" in splits:
         model.load_state_dict(torch.load(os.path.join("Experiments", exp_name, save_path_prefix)))
         adata_test = [adata[adata.obs["split"]=="test"], adata_128[adata_128.obs["split"]=="test"]]
-        test_metrics, imputation_data = inference_function(adata=adata_test,
+        test_metrics, imputation_data, _ = inference_function(adata=adata_test,
                                                             dataloader=test_dataloader, 
                                                             data=st_data_test, 
                                                             masked_data=st_data_masked_test, 

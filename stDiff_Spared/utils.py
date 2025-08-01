@@ -5,7 +5,7 @@ import torch
 import anndata as ad
 import argparse
 # Later change again and use the softlink
-from metrics_stdiff import get_metrics
+from metrics import get_metrics
 import numpy as np
 import torch
 import squidpy as sq
@@ -13,7 +13,7 @@ import anndata as ad
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 import copy
-from spared_stdiff.datasets import get_dataset
+from spared.datasets import get_dataset
 
 
 warnings.filterwarnings('ignore')
@@ -53,6 +53,7 @@ def get_main_parser():
     parser.add_argument('--momentum',                       type=float,         default=0.9,                        help='Momentum to use in the optimizer if it receives this parameter. If not, it is not used. It will just modify main optimizers and not sota (they have fixed optimizers).')
     parser.add_argument('--step_size',                       type=float,         default=600,                         help='Step size to use in learning rate scheduler')
     parser.add_argument("--scheduler",                        type=str2bool,           default=True,                                help='Whether to use LR scheduler or not')
+    parser.add_argument("--mask_percentage",                  type=str,           default="",                                help='mask_percentage')
     # Autoencoder parameters #######################################################################################################################################################################
     parser.add_argument('--num_res_blocks',                   type=int,          default=8,                       help='Number of resnet blocks')
     parser.add_argument('--ch',                                type=int,        default=512,                        help='number of hidden dimensions in encoder')
@@ -158,7 +159,7 @@ def get_deltas(adata: ad.AnnData, from_layer: str, to_layer: str) -> ad.AnnData:
     # Return the updated AnnData object
     return adata
 
-def get_mask_prob_tensor(masking_method, dataset, mask_prob=0.3, scale_factor=0.8):
+def get_mask_prob_tensor(masking_method, adata, mask_prob=0.3, scale_factor=0.8):
     """
     This function calculates the probability of masking each gene present in the expression matrix. 
     Within this function, there are three different methods for calculating the masking probability, 
@@ -176,7 +177,7 @@ def get_mask_prob_tensor(masking_method, dataset, mask_prob=0.3, scale_factor=0.
     """
 
     # Convert glob_exp_frac to tensor
-    glob_exp_frac = torch.tensor(dataset.adata.var.glob_exp_frac.values, dtype=torch.float32)
+    glob_exp_frac = torch.tensor(adata.var.glob_exp_frac.values, dtype=torch.float32)
     # Calculate the probability of median imputation
     prob_median = 1 - glob_exp_frac
 
@@ -198,7 +199,6 @@ def get_mask_prob_tensor(masking_method, dataset, mask_prob=0.3, scale_factor=0.
         
     # If probability is more than 1, set it to 1
     prob_tensor[prob_tensor>1] = 1
-
     return prob_tensor
 
 def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.Tensor, device):
@@ -230,7 +230,6 @@ def mask_exp_matrix(adata: ad.AnnData, pred_layer: str, mask_prob_tensor: torch.
     adata.layers['masked_expression_matrix'] = np.asarray(expression_mtx.cpu())
     #Save final mask for metric computation
     adata.layers['random_mask'] = np.asarray(random_mask.cpu())
-
     return adata
 """
 def decode(imputation, model_decoder):
@@ -283,7 +282,6 @@ def decode_transformers(imputation, model_decoder, batch_size=128):
     decoded_data = torch.cat(decoded_batches, dim=0)
 
     return decoded_data
-
 
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -442,6 +440,7 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
     print("mse del dit: ", dit_mse)
     
     #Decoded imputation data
+    
     if args.matrix:
         imputation = decode_transformers(imputation=imputation, model_decoder=model_decoder, batch_size=args.batch_size)
         imputation = imputation[:,0,:]
@@ -453,14 +452,14 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
     if args.normalize_encoder == "1-1":
         imputation = denormalize_from_minus_one_to_one(imputation, max_enc[0].item(), min_enc[0].item())
     
+
     mask_boolean = mask_extreme_completion.astype(bool) #for extreme completion
-    
     #Evaluate only on spot central
     mask_boolean = mask_boolean[:,:,0]
 
     #GT data
     adata_1024, adata_128 = adata
-    data = adata_1024.layers[args.prediction_layer]
+    #data = adata_1024.layers[args.prediction_layer]
     #data = adata_128.layers[args.prediction_layer]
     
     if avg_tensor != None:
@@ -470,13 +469,14 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
         imputation = np.array(imputation.cpu())
 
     imputation_tensor = torch.tensor(imputation, dtype=torch.float32)
-    
     #matrix input extreme completion metrics
     data_1024 = adata_1024.layers["c_t_log1p"]
     data_1024_tensor = torch.tensor(data_1024)
     mse_final = F.mse_loss(imputation_tensor[mask_boolean], data_1024_tensor[mask_boolean])
     mask_tensor = torch.tensor(mask_boolean)
-    print(f"mse extreme completion: {mse_final}")
+    if not args.partial:
+        print(f"mse extreme completion: {mse_final}")
+        
     mask_boolean = torch.tensor(mask_boolean)
     metrics_dict = get_metrics(data_1024_tensor.cpu(), imputation_tensor.cpu(), mask_boolean.cpu())
     
@@ -486,12 +486,20 @@ def inference_function(adata, dataloader, data, masked_data, model, mask, mask_e
         data_128_tensor = torch.tensor(data_128)
         mask_tensor = torch.tensor(mask_boolean)
         selected_values = imputation_tensor.masked_select(mask_tensor).reshape(-1, data_128.shape[1])
-        partial_mask = adata_128.layers["masked_expression_matrix"]
-        partial_mask = partial_mask==0
+
+        if args.mask_percentage == "":
+            partial_mask = adata_128.layers["random_mask"]
+        else:
+            partial_mask = adata_128.layers[f"spackle_mask_{args.mask_percentage}"]
+        
+        list_percentage = []
+        for i in range(partial_mask.shape[1]):
+            list_percentage.append(partial_mask[:,i].sum()/partial_mask.shape[0])
+ 
         mse_final = F.mse_loss(selected_values[partial_mask], data_128_tensor[partial_mask])
-        print(f"mse partial completion: {mse_final}")
-    
-    return metrics_dict, imputation_tensor
+        print(f"mse partial completion for {args.mask_percentage}: {mse_final}")
+        
+    return metrics_dict, imputation_tensor, mse_final
 
 
 def build_neighborhood_from_distance(adata, pred_layer, num_neighs = 6):
@@ -869,6 +877,45 @@ def get_new_adatas(path, args):
     adata, _  = denoising.spackle_cleaner(adata=adata, dataset=dataset_name, from_layer="c_d_log1p", to_layer="c_t_log1p", device = "cuda:7")
     adata = get_deltas(adata, from_layer='c_t_log1p', to_layer='c_t_deltas')   
     #dict_genes[dataset_name] = adata.shape[1]
+    
+    return adata
+
+
+def get_complete_adatas(path, param_dict, args):
+    dataset_name = args.dataset
+    
+    if "mouse" in dataset_name:
+        param_dict["organism"] = "mouse"
+    else:
+        param_dict["organism"] = "human"
+
+    param_dict["hex_geometry"] = True
+    
+    raw_adata = ad.read_h5ad(path)
+    path_adata_original = f"/home/dvegaa/ST_Diffusion/stDiff_Spared/processed_data/{args.dataset}/adata.h5ad"
+    original_adata = ad.read_h5ad(path_adata_original)
+    common_spots = original_adata.obs_names
+    adata = raw_adata[common_spots].copy()
+    breakpoint()
+    #adata = filter_dataset(raw_adata, param_dict)
+    adata = get_exp_frac(adata)
+    adata = get_glob_exp_frac(adata)
+    adata.layers['counts'] = adata.X.toarray()
+    adata = tpm_normalization(adata, param_dict["organism"], from_layer='counts', to_layer='tpm')
+    adata = log1p_transformation(adata, from_layer='tpm', to_layer='log1p')
+    adata = denoising.median_cleaner(adata, from_layer='log1p', to_layer='d_log1p', n_hops=4, hex_geometry=param_dict["hex_geometry"])
+    adata = gene_features.compute_moran(adata, hex_geometry=param_dict["hex_geometry"], from_layer='d_log1p') 
+    total_genes = 10000
+    adata = filtering.filter_by_moran(adata, n_keep=total_genes, from_layer='d_log1p')
+    adata = combat_transformation(adata, batch_key=param_dict['combat_key'], from_layer='log1p', to_layer='c_log1p')
+    adata = combat_transformation(adata, batch_key=param_dict['combat_key'], from_layer='d_log1p', to_layer='c_d_log1p')
+    adata = get_deltas(adata, from_layer='log1p', to_layer='deltas')
+    adata = get_deltas(adata, from_layer='d_log1p', to_layer='d_deltas')
+    adata = get_deltas(adata, from_layer='c_log1p', to_layer='c_deltas')
+    adata = get_deltas(adata, from_layer='c_d_log1p', to_layer='c_d_deltas')
+    adata.layers['mask'] = adata.layers['tpm'] != 0
+    #adata, _  = denoising.spackle_cleaner(adata=adata, dataset=dataset_name, from_layer="c_d_log1p", to_layer="c_t_log1p", device = "cuda")
+    #adata = get_deltas(adata, from_layer='c_t_log1p', to_layer='c_t_deltas')   
     
     return adata
             

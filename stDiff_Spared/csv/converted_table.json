@@ -1,0 +1,210 @@
+[
+  {
+    "DATASET": "fan_mouse_olfactory_bulb",
+    "stDiff": 0.49,
+    "SpaCKLE": 0.701,
+    "LGDist": 0.84,
+    "LGDist vs SpaCKLE": -19.76,
+    "LGDist vs stDiff": -71.43
+  },
+  {
+    "DATASET": "mirzazadeh_mouse_brain_p2",
+    "stDiff": 0.71,
+    "SpaCKLE": 0.659,
+    "LGDist": 0.912,
+    "LGDist vs SpaCKLE": -38.46,
+    "LGDist vs stDiff": -28.49
+  },
+  {
+    "DATASET": "mirzazadeh_human_pediatric_brain_tumor_p1",
+    "stDiff": 0.474,
+    "SpaCKLE": 0.214,
+    "LGDist": 0.168,
+    "LGDist vs SpaCKLE": 21.44,
+    "LGDist vs stDiff": 64.56
+  },
+  {
+    "DATASET": "mirzazadeh_mouse_brain",
+    "stDiff": 2.825,
+    "SpaCKLE": 0.793,
+    "LGDist": 0.909,
+    "LGDist vs SpaCKLE": -14.7,
+    "LGDist vs stDiff": 67.82
+  },
+  {
+    "DATASET": "parigi_mouse_intestine",
+    "stDiff": 0.166,
+    "SpaCKLE": 0.331,
+    "LGDist": 0.148,
+    "LGDist vs SpaCKLE": 55.46,
+    "LGDist vs stDiff": 11.12
+  },
+  {
+    "DATASET": "mirzazadeh_mouse_brain_p1",
+    "stDiff": 0.621,
+    "SpaCKLE": 0.667,
+    "LGDist": 0.562,
+    "LGDist vs SpaCKLE": 15.74,
+    "LGDist vs stDiff": 9.48
+  },
+  {
+    "DATASET": "10xgenomic_mouse_brain_sagittal_posterior",
+    "stDiff": 0.633,
+    "SpaCKLE": 0.638,
+    "LGDist": 0.477,
+    "LGDist vs SpaCKLE": 25.18,
+    "LGDist vs stDiff": 24.64
+  },
+  {
+    "DATASET": "mirzazadeh_human_prostate_cancer",
+    "stDiff": 0.826,
+    "SpaCKLE": 0.815,
+    "LGDist": 0.691,
+    "LGDist vs SpaCKLE": 15.28,
+    "LGDist vs stDiff": 16.38
+  },
+  {
+    "DATASET": "10xgenomic_mouse_brain_sagittal_anterior",
+    "stDiff": 0.603,
+    "SpaCKLE": 0.691,
+    "LGDist": 0.612,
+    "LGDist vs SpaCKLE": 11.42,
+    "LGDist vs stDiff": -1.49
+  },
+  {
+    "DATASET": "mirzazadeh_mouse_bone",
+    "stDiff": 0.66,
+    "SpaCKLE": 0.628,
+    "LGDist": 0.417,
+    "LGDist vs SpaCKLE": 33.55,
+    "LGDist vs stDiff": 36.82
+  },
+  {
+    "DATASET": "10xgenomic_human_breast_cancer",
+    "stDiff": 0.577,
+    "SpaCKLE": 0.81,
+    "LGDist": 0.512,
+    "LGDist vs SpaCKLE": 36.76,
+    "LGDist vs stDiff": 11.27
+  },
+  {
+    "DATASET": "10xgenomic_human_brain",
+    "stDiff": 0.673,
+    "SpaCKLE": 0.655,
+    "LGDist": 0.579,
+    "LGDist vs SpaCKLE": 11.59,
+    "LGDist vs stDiff": 13.95
+  },
+  {
+    "DATASET": "villacampa_mouse_brain",
+    "stDiff": 0.921,
+    "SpaCKLE": 0.815,
+    "LGDist": 0.5,
+    "LGDist vs SpaCKLE": 38.63,
+    "LGDist vs stDiff": 45.71
+  },
+  {
+    "DATASET": "vicari_mouse_brain*",
+    "stDiff": 0.77,
+    "SpaCKLE": 0.824,
+    "LGDist": 0.37,
+    "LGDist vs SpaCKLE": 55.07,
+    "LGDist vs stDiff": 51.94
+  },
+  {
+    "DATASET": "abalo_human_squamous_cell_carcinoma",
+    "stDiff": 0.704,
+    "SpaCKLE": 0.771,
+    "LGDist": 0.843,
+    "LGDist vs SpaCKLE": -9.29,
+    "LGDist vs stDiff": -19.74
+  },
+  {
+    "DATASET": "erickson_human_prostate_cancer_p1",
+    "stDiff": 0.775,
+    "SpaCKLE": 0.641,
+    "LGDist": 0.85,
+    "LGDist vs SpaCKLE": -32.58,
+    "LGDist vs stDiff": -9.68
+  },
+  {
+    "DATASET": "10xgenomic_mouse_brain_coronal",
+    "stDiff": 0.61,
+    "SpaCKLE": 0.643,
+    "LGDist": 0.591,
+    "LGDist vs SpaCKLE": 8.13,
+    "LGDist vs stDiff": 3.11
+  },
+  {
+    "DATASET": "mirzazadeh_human_pediatric_brain_tumor_p2",
+    "stDiff": 0.749,
+    "SpaCKLE": 0.707,
+    "LGDist": 0.189,
+    "LGDist vs SpaCKLE": 73.28,
+    "LGDist vs stDiff": 74.77
+  },
+  {
+    "DATASET": "mirzazadeh_human_small_intestine",
+    "stDiff": 2.189,
+    "SpaCKLE": 1.571,
+    "LGDist": 0.376,
+    "LGDist vs SpaCKLE": 76.06,
+    "LGDist vs stDiff": 82.82
+  },
+  {
+    "DATASET": "villacampa_kidney_organoid",
+    "stDiff": 0.826,
+    "SpaCKLE": 0.93,
+    "LGDist": 1.014,
+    "LGDist vs SpaCKLE": -8.98,
+    "LGDist vs stDiff": -22.76
+  },
+  {
+    "DATASET": "mirzazadeh_human_colon_p1",
+    "stDiff": 0.831,
+    "SpaCKLE": 1.18,
+    "LGDist": 0.644,
+    "LGDist vs SpaCKLE": 45.41,
+    "LGDist vs stDiff": 22.5
+  },
+  {
+    "DATASET": "villacampa_lung_organoid",
+    "stDiff": 0.749,
+    "SpaCKLE": 0.804,
+    "LGDist": 0.843,
+    "LGDist vs SpaCKLE": -4.87,
+    "LGDist vs stDiff": -12.55
+  },
+  {
+    "DATASET": "fan_mouse_brain_coronal",
+    "stDiff": 0.667,
+    "SpaCKLE": 0.656,
+    "LGDist": 0.493,
+    "LGDist vs SpaCKLE": 24.83,
+    "LGDist vs stDiff": 26.11
+  },
+  {
+    "DATASET": "vicari_human_striatium",
+    "stDiff": 0.613,
+    "SpaCKLE": 0.505,
+    "LGDist": 0.462,
+    "LGDist vs SpaCKLE": 8.46,
+    "LGDist vs stDiff": 24.63
+  },
+  {
+    "DATASET": "mirzazadeh_human_colon_p2",
+    "stDiff": 0.765,
+    "SpaCKLE": 0.733,
+    "LGDist": 0.421,
+    "LGDist vs SpaCKLE": 42.62,
+    "LGDist vs stDiff": 45.02
+  },
+  {
+    "DATASET": "erickson_human_prostate_cancer_p2",
+    "stDiff": 1.591,
+    "SpaCKLE": 0.589,
+    "LGDist": 0.652,
+    "LGDist vs SpaCKLE": -10.6,
+    "LGDist vs stDiff": 59.02
+  }
+]
